@@ -273,8 +273,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     <h2 id="fmTitle">קצב חופשי</h2>
     <div class="valrow"><input id="freeIn" type="number" inputmode="numeric" min="20" max="300" aria-label="קצב BPM"></div>
     <div class="steps4">
-      <button data-fd="-5">−5</button><button data-fd="-1">−1</button>
-      <button data-fd="1">+1</button><button data-fd="5">+5</button>
+      <button data-fd="5">+5</button><button data-fd="1">+1</button>
+      <button data-fd="-1">−1</button><button data-fd="-5">−5</button>
     </div>
     <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterFree"></div></div>
     <button class="primary" id="fmOk">אישור</button>
@@ -288,12 +288,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     <h2 id="sheetTitle">ריבוע 1</h2>
     <div class="valrow"><input id="bpmIn" type="number" inputmode="numeric" min="20" max="300"></div>
     <div class="steps4">
-      <button data-d="-5">−5</button><button data-d="-1">−1</button>
-      <button data-d="1">+1</button><button data-d="5">+5</button>
+      <button data-d="5">+5</button><button data-d="1">+1</button>
+      <button data-d="-1">−1</button><button data-d="-5">−5</button>
     </div>
     <label class="namerow" for="nameIn"><span class="lbl">טקסט מתחת למספר</span>
       <input id="nameIn" type="text" dir="auto" maxlength="24" placeholder="למשל: פזמון, בית, סולו" autocomplete="off"></label>
-    <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterPad"></div></div>
+    <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterPad"></div><p class="hint latehint">ב־5/8 ו־7/8 הקצב נמדד ברבעים כמו ב־4/4, והקליקים בשמיניות. ב־6/8 כל קליק הוא שמינית לפי ה־BPM.</p></div>
     <button class="wide tap" id="tapBtn">הקש כאן בקצב (Tap tempo)</button>
     <button class="primary" id="doneBtn">שמור</button>
     <p class="hint">לחיצה ארוכה על ריבוע פותחת את העריכה גם בלי מצב עריכה</p>
@@ -310,7 +310,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   const MORE_PADS = [100,170,90,115,125,135,140,165,175,180];   // pads 7-16
   const TOTAL = 16;
   const METERS = ['1/4','2/4','3/4','4/4','5/4','6/4','5/8','6/8','7/8'];
-  const GROUPS = { '5/8':[3], '6/8':[3], '7/8':[2,4] };          // secondary accents (0-based beats): 3+2, 3+3, 2+2+3
+  const GROUPS = { '5/8':[3], '6/8':[3], '7/8':[3] };            // secondary accents (0-based beats): 3+2, 3+3, 3+4
 
   // ---------- state ----------
   const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8,
@@ -337,6 +337,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   const clamp = v => Math.max(20, Math.min(300, Math.round(v || 0)));
   const padLabel = i => (S.names[i] || '').trim() || term(S.pads[i]);
   const meterBeats = m => +m.split('/')[0];
+  // BPM counts quarter notes. In 5/8 and 7/8 every click is an eighth, so 7/8 at 150 keeps the pulse of 4/4 at 150.
+  // 6/8 is the exception: there the BPM counts the eighths themselves.
+  const HALVED = ['5/8', '7/8'];
+  const clickGap = (m, tempo) => 60 / tempo / (HALVED.includes(m) ? 2 : 1);
   const accentOf = (m, b) => b === 0 ? 2 : ((GROUPS[m] || []).includes(b) ? 1 : 0);   // 2 strong, 1 medium, 0 plain
 
   let bpm = S.active < 0 ? S.free : S.pads[S.active];
@@ -401,7 +405,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       if (beat === 0) applyAtBarLine();
       playSound(nextTime, accentOf(curMeter, beat));
       visualQ.push({ t: nextTime, beat, bar: schedBar, bpm, active: S.active, meter: curMeter });
-      nextTime += 60 / bpm;
+      nextTime += clickGap(curMeter, bpm);
       beat = (beat + 1) % meterBeats(curMeter);
       if (beat === 0) schedBar++;
     }
