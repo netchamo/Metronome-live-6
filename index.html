@@ -782,7 +782,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     }
     save(); $('sheetBg').hidden = true; buildPads(); render();
   }
-  document.querySelectorAll('.steps4 button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.steps4 button[data-d]').forEach(b => b.onclick = () => {
     $('bpmIn').value = clamp(+$('bpmIn').value + +b.dataset.d);
   });
   $('tapBtn').onclick = () => {

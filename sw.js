@@ -1,6 +1,6 @@
 // Keeps the metronome on the device so it opens without internet.
 // Strategy: answer from the saved copy right away, and refresh that copy in the background when online.
-const CACHE = 'metronome-v13';
+const CACHE = 'metronome-v14';
 const FILES = [
   './', './index.html', './manifest.json',
   './rubik.woff', './rubik-italic.woff', './assistant.woff',
