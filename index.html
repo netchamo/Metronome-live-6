@@ -194,8 +194,6 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     </button>
   </div>
 
-  <div class="beats" id="beats" aria-hidden="true"></div>
-
   <div class="freerow">
     <div class="free" id="free">
       <button class="nudge" id="freePlus" aria-label="הגבר קצב ב־1">+</button>
@@ -203,6 +201,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       <button class="nudge" id="freeMinus" aria-label="הורד קצב ב־1">−</button>
     </div>
   </div>
+
+  <div class="beats" id="beats" aria-hidden="true"></div>
 
   <div class="padswrap">
     <div class="padsview" id="padsView"><div class="pads" id="pads"></div></div>
@@ -287,13 +287,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   <div class="sheet" role="dialog" aria-labelledby="sheetTitle">
     <h2 id="sheetTitle">ריבוע 1</h2>
     <div class="valrow"><input id="bpmIn" type="number" inputmode="numeric" min="20" max="300"></div>
-    <label class="namerow" for="nameIn"><span class="lbl">טקסט מתחת למספר</span>
-      <input id="nameIn" type="text" dir="auto" maxlength="24" placeholder="למשל: פזמון, בית, סולו" autocomplete="off"></label>
-    <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterPad"></div></div>
     <div class="steps4">
       <button data-d="-5">−5</button><button data-d="-1">−1</button>
       <button data-d="1">+1</button><button data-d="5">+5</button>
     </div>
+    <label class="namerow" for="nameIn"><span class="lbl">טקסט מתחת למספר</span>
+      <input id="nameIn" type="text" dir="auto" maxlength="24" placeholder="למשל: פזמון, בית, סולו" autocomplete="off"></label>
+    <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterPad"></div></div>
     <button class="wide tap" id="tapBtn">הקש כאן בקצב (Tap tempo)</button>
     <button class="primary" id="doneBtn">שמור</button>
     <p class="hint">לחיצה ארוכה על ריבוע פותחת את העריכה גם בלי מצב עריכה</p>
