@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>מטרונום שישה קצבים</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="מטרונום">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#15130f">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+@font-face{font-family:"Rubik";src:url(rubik.woff) format("woff");font-weight:300 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Rubik";src:url(rubik-italic.woff) format("woff");font-weight:300 900;font-style:italic;font-display:swap}
+@font-face{font-family:"Assistant";src:url(assistant.woff) format("woff");font-weight:200 800;font-style:normal;font-display:swap}
+/* Layout: stage tool — slim transport bar, beat strip, six pads take all remaining space, free-tempo bar under them. Settings live behind a gear. */
+:root{
+  --bg:#15130f;
+  --surface:#211e18;
+  --surface-2:#2c2820;
+  --line:#3b352a;
+  --fg:#f1eadb;
+  --muted:#a59a83;
+  --brass:#e2a93b;
+  --brass-ink:#1b1408;
+  --pending:#7fc4b0;
+  --font-num:"Rubik",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --font-ui:"Assistant","Rubik",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --gap:10px;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:16px;
+  --safe-t:max(10px,calc(env(safe-area-inset-top,0px) + 6px));
+  --safe-b:max(10px,calc(env(safe-area-inset-bottom,0px) + 4px));
+  --safe-l:max(12px,calc(env(safe-area-inset-left,0px) + 8px));
+  --safe-r:max(12px,calc(env(safe-area-inset-right,0px) + 8px));
+  padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+  box-sizing:border-box;overflow:hidden;overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-rows:auto auto 1fr auto;gap:var(--gap);max-width:1400px;margin-inline:auto}
+
+/* transport */
+.top{display:flex;align-items:center;gap:14px;min-width:0}
+.play{width:64px;height:64px;border-radius:50%;background:var(--brass);color:var(--brass-ink);display:grid;place-items:center;flex:none;transition:transform .08s}
+.play:active{transform:scale(.94)}
+.play svg{width:28px;height:28px}
+.now{display:flex;align-items:baseline;gap:8px;flex:none}
+.now .bpm{font-family:var(--font-num);font-weight:800;font-size:clamp(40px,7vmin,64px);line-height:1;font-variant-numeric:tabular-nums}
+.now .term{color:var(--brass);font-style:italic;font-family:var(--font-num);font-size:15px}
+.status{flex:1;min-width:0;color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status.next{color:var(--pending);font-weight:700;font-size:16px}
+.status.edit{color:var(--brass);font-weight:700}
+.iconbtn{width:56px;height:56px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;flex:none;color:var(--muted)}
+.iconbtn svg{width:26px;height:26px}
+.donebtn{height:56px;padding-inline:20px;border-radius:14px;background:var(--brass);color:var(--brass-ink);font-weight:700;font-size:17px;flex:none}
+
+/* beat strip */
+.beats{display:flex;gap:8px;align-items:center;height:20px}
+.dot{flex:1;height:8px;border-radius:4px;background:var(--surface-2);transition:background .05s}
+.dot.first{height:16px;border-radius:6px}
+.dot.on{background:var(--fg)}
+.dot.first.on{background:var(--brass)}
+
+/* pads: take every pixel left */
+.app{--cols:3;--rows:2;--lbl:1}
+.app.eight{--cols:4;--rows:2}
+.pads{display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);gap:var(--gap);min-height:0}
+.pad{position:relative;container-type:size;border-radius:18px;background:var(--surface);border:2px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;min-width:0;overflow:hidden;
+  transition:background .12s,border-color .12s,transform .06s}
+.pad:active{transform:scale(.98)}
+.pad .n{font-family:var(--font-num);font-weight:800;font-size:9vmin;font-size:clamp(34px,min(46cqh,36cqw),190px);line-height:1;font-variant-numeric:tabular-nums}
+.pad .t{color:var(--muted);font-style:italic;font-family:var(--font-num);font-size:clamp(calc(12px * var(--lbl)),min(calc(9cqh * var(--lbl)),calc(7cqw * var(--lbl))),calc(22px * var(--lbl)));line-height:1.15}
+.app.lbl2{--lbl:1.5}.app.lbl3{--lbl:2.1}
+.app.lbl2 .pad .n,.app.lbl3 .pad .n{font-size:clamp(30px,min(38cqh,34cqw),170px)}
+.pad .k{position:absolute;top:8px;inset-inline-start:12px;color:var(--muted);font-family:var(--font-num);font-size:13px}
+.pad.active{background:var(--brass);border-color:var(--brass);color:var(--brass-ink)}
+.pad.active .t,.pad.active .k{color:var(--brass-ink);opacity:.75}
+.pad.pending{border-color:var(--pending);border-style:dashed;animation:pend .5s ease-in-out infinite alternate}
+@keyframes pend{from{background:var(--surface)}to{background:#24332e}}
+.editing .pad{border-style:dotted;border-color:var(--brass)}
+.editing .pad .k::before{content:"✎ "}
+
+/* free tempo bar: two pads wide */
+.freerow{display:flex;justify-content:center}
+.free{width:calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols) * 2 + var(--gap));height:clamp(64px,14vh,124px);display:flex;align-items:stretch;gap:var(--gap);
+  background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:6px;transition:background .12s,border-color .12s}
+.free.active{border-color:var(--brass);background:#2d2516}
+.free .nudge{flex:0 0 30%;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);
+  font-size:clamp(34px,8vh,64px);font-weight:700;line-height:1;display:grid;place-items:center;touch-action:none;transition:transform .06s}
+.free .nudge:active{transform:scale(.96);background:var(--line)}
+.free .mid{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+.free .fv{font-family:var(--font-num);font-weight:800;font-size:clamp(30px,7vh,60px);line-height:1;font-variant-numeric:tabular-nums}
+.free.active .fv{color:var(--brass)}
+.free .fl{color:var(--muted);font-size:12px;letter-spacing:.04em;white-space:nowrap}
+
+/* sheets (settings + pad editor) */
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:end center;z-index:10}
+.sheet{width:min(600px,100%);max-height:100%;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:22px 22px 0 0;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:grid;gap:14px}
+.sheet h2{margin:0;font-size:19px;font-weight:700;text-wrap:balance}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.setrow .lbl{color:var(--muted);font-size:15px;font-weight:600}
+.seg{display:flex;gap:6px;background:var(--bg);border-radius:12px;padding:4px}
+.chip{min-height:46px;padding-inline:16px;border-radius:9px;font-weight:600;font-size:16px;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--surface-2);color:var(--fg);box-shadow:inset 0 0 0 1.5px var(--brass)}
+.step{width:46px;height:46px;border-radius:10px;background:var(--surface-2);font-size:22px;font-weight:700}
+.sig{font-family:var(--font-num);font-weight:700;font-size:20px;min-width:52px;text-align:center;font-variant-numeric:tabular-nums}
+.vol{width:min(240px,60vw);accent-color:var(--brass);height:36px}
+.wide{height:54px;border-radius:14px;background:var(--surface-2);font-weight:700;font-size:17px}
+.primary{height:54px;border-radius:14px;background:var(--brass);color:var(--brass-ink);font-weight:700;font-size:18px}
+.valrow{display:flex;justify-content:center}
+.valrow input{width:160px;font-family:var(--font-num);font-weight:800;font-size:56px;text-align:center;background:var(--bg);
+  color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:4px;font-variant-numeric:tabular-nums}
+.steps4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.steps4 button{height:52px;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);font-weight:700;font-size:18px}
+.tap{border:1px dashed var(--line)}
+.hint{color:var(--muted);font-size:13px;text-align:center;margin:0}
+.latehint{flex-basis:100%;text-align:start}
+.namerow{display:grid;gap:6px}
+.namerow .lbl{color:var(--muted);font-size:15px;font-weight:600}
+.namerow input{height:52px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:19px;padding-inline:14px}
+.pad .t{max-width:92%;overflow:hidden;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.latev{min-width:96px;font-size:16px}
+
+/* phone portrait: 2 x 3 */
+@media (max-width:640px) and (orientation:portrait){
+  .app{--cols:2;--rows:3}
+  .now .term{display:none}
+}
+/* short screens (phone landscape): shrink the chrome, keep the pads big */
+@media (max-height:520px){
+  :root{--gap:8px}
+  body{--safe-t:max(6px,calc(env(safe-area-inset-top,0px) + 4px));--safe-b:max(6px,calc(env(safe-area-inset-bottom,0px) + 2px))}
+  .play{width:48px;height:48px}
+  .play svg{width:22px;height:22px}
+  .now .bpm{font-size:34px}
+  .iconbtn{width:46px;height:46px}
+  .donebtn{height:46px}
+  .beats{height:14px}
+  .dot{height:6px}.dot.first{height:12px}
+  .free{height:clamp(52px,17vh,80px)}
+}
+/* 8 pads standing up (phone or tablet): 2 x 4 */
+@media (orientation:portrait){ .app.eight{--cols:2;--rows:4} }
+@media (prefers-reduced-motion:reduce){.pad.pending{animation:none;background:#24332e}}
+</style>
+</head>
+<body>
+
+
+<div class="app" id="app" dir="rtl">
+  <div class="top">
+    <button class="play" id="play" aria-label="הפעל"></button>
+    <div class="now">
+      <span class="bpm" id="nowBpm">120</span>
+      <span class="term" id="nowTerm">Allegro</span>
+    </div>
+    <div class="status" id="status"></div>
+    <button class="donebtn" id="doneEdit" hidden>סיום עריכה</button>
+    <button class="iconbtn" id="gear" aria-label="הגדרות">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <div class="beats" id="beats" aria-hidden="true"></div>
+
+  <div class="pads" id="pads"></div>
+
+  <div class="freerow">
+    <div class="free" id="free">
+      <button class="nudge" id="freePlus" aria-label="הגבר קצב ב־1">+</button>
+      <div class="mid"><span class="fv" id="freeVal">120</span><span class="fl" id="freeLbl">קצב חופשי</span></div>
+      <button class="nudge" id="freeMinus" aria-label="הורד קצב ב־1">−</button>
+    </div>
+  </div>
+</div>
+
+<!-- settings -->
+<div class="sheet-bg" id="setBg" dir="rtl" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="setTitle">
+    <h2 id="setTitle">הגדרות</h2>
+    <div class="setrow">
+      <span class="lbl">החלפת קצב</span>
+      <div class="seg"><button class="chip" id="qBar">בסוף תיבה</button><button class="chip" id="qNow">מיד</button></div>
+    </div>
+    <div class="setrow" id="lateRow">
+      <span class="lbl">לחיצה מאוחרת נכנסת בתיבה שאחרי</span>
+      <div class="seg" style="align-items:center">
+        <button class="step" id="lateMinus" aria-label="מוקדם יותר">−</button>
+        <span class="sig latev" id="lateVal">כבוי</span>
+        <button class="step" id="latePlus" aria-label="מאוחר יותר">+</button>
+      </div>
+      <p class="hint latehint" id="lateHint"></p>
+    </div>
+    <div class="setrow">
+      <span class="lbl">הפעלה ועצירה</span>
+      <div class="seg"><button class="chip" id="startPlay">כפתור עגול בלבד</button><button class="chip" id="startPad">גם מהריבועים</button></div>
+      <p class="hint latehint" id="startHint"></p>
+    </div>
+    <div class="setrow">
+      <span class="lbl">מספר ריבועים</span>
+      <div class="seg"><button class="chip" id="count6">6</button><button class="chip" id="count8">8</button></div>
+    </div>
+    <div class="setrow">
+      <span class="lbl">גודל הטקסט בריבועים</span>
+      <div class="seg"><button class="chip" data-lbl="1">רגיל</button><button class="chip" data-lbl="2">גדול</button><button class="chip" data-lbl="3">גדול מאוד</button></div>
+    </div>
+    <div class="setrow">
+      <span class="lbl">משקל</span>
+      <div class="seg" style="align-items:center">
+        <button class="step" id="sigMinus" aria-label="פחות פעמות">−</button>
+        <span class="sig" id="sig">4/4</span>
+        <button class="step" id="sigPlus" aria-label="יותר פעמות">+</button>
+      </div>
+    </div>
+    <div class="setrow">
+      <span class="lbl">צליל</span>
+      <div class="seg">
+        <button class="chip" data-sound="click">קליק</button>
+        <button class="chip" data-sound="wood">עץ</button>
+        <button class="chip" data-sound="beep">ביפ</button>
+      </div>
+    </div>
+    <div class="setrow">
+      <span class="lbl">הדגשת פעמה 1</span>
+      <div class="seg"><button class="chip" id="accOn">כן</button><button class="chip" id="accOff">לא</button></div>
+    </div>
+    <div class="setrow">
+      <span class="lbl">עוצמה</span>
+      <input type="range" dir="ltr" class="vol" id="vol" min="0" max="1" step="0.01" aria-label="עוצמה">
+    </div>
+    <button class="wide" id="editBtn">✎ עריכת הקצבים בריבועים</button>
+    <button class="primary" id="setClose">סגור</button>
+  </div>
+</div>
+
+<!-- pad editor -->
+<div class="sheet-bg" id="sheetBg" dir="rtl" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="sheetTitle">
+    <h2 id="sheetTitle">ריבוע 1</h2>
+    <div class="valrow"><input id="bpmIn" type="number" inputmode="numeric" min="20" max="300"></div>
+    <label class="namerow" for="nameIn"><span class="lbl">טקסט מתחת למספר</span>
+      <input id="nameIn" type="text" dir="auto" maxlength="24" placeholder="למשל: פזמון, בית, סולו" autocomplete="off"></label>
+    <div class="steps4">
+      <button data-d="-5">−5</button><button data-d="-1">−1</button>
+      <button data-d="1">+1</button><button data-d="5">+5</button>
+    </div>
+    <button class="wide tap" id="tapBtn">הקש כאן בקצב (Tap tempo)</button>
+    <button class="primary" id="doneBtn">שמור</button>
+    <p class="hint">לחיצה ארוכה על ריבוע פותחת את העריכה גם בלי מצב עריכה</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const KEY = 'six-tempo-metronome-v1';
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const ICON_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></svg>';
+  const DEFAULT_PADS = [110,120,128,146,150,156];
+  const EXTRA_PADS = [100,170];   // pads 7-8 when 8 pads are on
+
+  // ---------- state ----------
+  const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8, lateBeat:0, padStarts:false, names:['','','','','',''], padCount:6, lblSize:1 };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch(e){}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
+  if (S.padsVersion !== 2){ S.pads = DEFAULT_PADS.slice(); S.padsVersion = 2; S.active = Math.min(S.active, 5); save(); }
+  if (typeof S.free !== 'number') S.free = 120;
+  if (!Array.isArray(S.names)) S.names = [];
+  while (S.pads.length < 8) S.pads.push(EXTRA_PADS[S.pads.length - 6] ?? 120);
+  while (S.names.length < 8) S.names.push('');
+  if (S.padCount !== 8) S.padCount = 6;
+  if (![1,2,3].includes(S.lblSize)) S.lblSize = 1;
+  if (S.active >= S.padCount){ S.free = S.pads[S.active]; S.active = -1; }
+  const padLabel = i => (S.names[i] || '').trim() || term(S.pads[i]);
+
+  let bpm = S.active < 0 ? S.free : S.pads[S.active];
+  let pending = null;
+  let playing = false;
+  let editing = false;
+
+  const term = b => b<60?'Largo':b<66?'Larghetto':b<76?'Adagio':b<108?'Andante':b<120?'Moderato':b<156?'Allegro':b<176?'Vivace':b<200?'Presto':'Prestissimo';
+  const clamp = v => Math.max(20, Math.min(300, Math.round(v || 0)));
+
+  // ---------- audio ----------
+  let ctx = null, master = null, noiseBuf = null;
+  function ensureAudio(){
+    if (ctx) { if (ctx.state !== 'running') ctx.resume(); return; }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value = S.vol; master.connect(ctx.destination);
+    noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.05), ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1,1,22050); s.connect(ctx.destination); s.start(0);
+  }
+  function env(t, peak, decay){
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    g.connect(master); return g;
+  }
+  function tone(t, freq, type, peak, decay){
+    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
+    o.connect(env(t, peak, decay)); o.start(t); o.stop(t + decay + 0.02);
+  }
+  function playSound(t, strong){
+    const hi = strong && S.accent;
+    if (S.sound === 'click'){
+      const n = ctx.createBufferSource(); n.buffer = noiseBuf;
+      const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value = hi ? 3000 : 1800;
+      n.connect(f); f.connect(env(t, hi ? 1 : 0.7, 0.03)); n.start(t); n.stop(t + 0.05);
+      tone(t, hi ? 2600 : 1900, 'square', 0.15, 0.02);
+    } else if (S.sound === 'wood'){
+      const o = ctx.createOscillator(); o.type='sine';
+      const f0 = hi ? 1250 : 880;
+      o.frequency.setValueAtTime(f0*1.6, t); o.frequency.exponentialRampToValueAtTime(f0, t+0.012);
+      const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f0; bp.Q.value=4;
+      o.connect(bp); bp.connect(env(t, 1, 0.07)); o.start(t); o.stop(t+0.1);
+      tone(t, f0*2.7, 'triangle', 0.12, 0.025);
+    } else {
+      tone(t, hi ? 1500 : 1000, 'sine', 0.8, 0.06);
+    }
+  }
+
+  // ---------- scheduler ----------
+  let nextTime = 0, beat = 0, timer = null;
+  let schedBar = 0, shownBar = 0, pendingBar = 0;   // bar numbers: scheduled / audible / when the queued tempo starts
+  const visualQ = [];
+  const LOOKAHEAD = 0.12;
+  function tick(){
+    if (ctx.state !== 'running') return;
+    if (nextTime < ctx.currentTime - 0.2){ visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.05; }
+    while (nextTime < ctx.currentTime + LOOKAHEAD){
+      if (beat === 0 && pending !== null && schedBar >= pendingBar){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
+      playSound(nextTime, beat === 0);
+      visualQ.push({ t: nextTime, beat, bar: schedBar, bpm, active: S.active });
+      nextTime += 60 / bpm;
+      beat = (beat + 1) % S.beats;
+      if (beat === 0) schedBar++;
+    }
+  }
+  function start(){
+    ensureAudio();
+    playing = true; beat = 0; schedBar = 0; shownBar = 0; nextTime = ctx.currentTime + 0.06;
+    timer = setInterval(tick, 25); tick();
+    requestWake(); render();
+  }
+  function stop(){
+    playing = false; clearInterval(timer); timer = null; visualQ.length = 0;
+    if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
+    shownBeat = -1; releaseWake(); render();
+  }
+
+  // ---------- visuals on the audio clock ----------
+  let shownBeat = -1, shownActive = S.active, shownBpm = bpm;
+  function frame(){
+    if (playing && ctx){
+      let changed = false;
+      while (visualQ.length && visualQ[0].t <= ctx.currentTime){
+        const v = visualQ.shift(); shownBeat = v.beat; shownBar = v.bar; shownActive = v.active; shownBpm = v.bpm; changed = true;
+      }
+      if (changed) renderLive();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- wake lock + recovery after app switch ----------
+  let wake = null;
+  async function requestWake(){ try { wake = await navigator.wakeLock?.request('screen'); } catch(e){} }
+  function releaseWake(){ try { wake?.release(); } catch(e){} wake = null; }
+  function recover(){
+    if (!playing || !ctx) return;
+    requestWake();
+    const restart = () => {
+      visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.08;
+      if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
+    };
+    if (ctx.state !== 'running') ctx.resume().then(restart).catch(() => {});
+    else if (nextTime < ctx.currentTime - 0.05) restart();
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') recover(); });
+  window.addEventListener('pageshow', recover);
+  window.addEventListener('focus', recover);
+  document.addEventListener('pointerdown', () => { if (playing && ctx && ctx.state !== 'running') recover(); }, true);
+
+  // ---------- pads ----------
+  const padsEl = $('pads'), beatsEl = $('beats');
+  const escapeHtml = t => t.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function buildPads(){
+    padsEl.innerHTML = '';
+    S.pads.slice(0, S.padCount).forEach((b, i) => {
+      const el = document.createElement('button');
+      el.className = 'pad'; el.id = 'pad'+i;
+      el.setAttribute('aria-label', `קצב ${b}`);
+      el.innerHTML = `<span class="k">${i+1}</span><span class="n">${b}</span><span class="t" dir="auto">${escapeHtml(padLabel(i))}</span>`;
+      let pressT = null, longFired = false;
+      el.addEventListener('pointerdown', () => { longFired = false; pressT = setTimeout(() => { longFired = true; openPadEditor(i); }, 600); });
+      ['pointerup','pointerleave','pointercancel'].forEach(ev => el.addEventListener(ev, () => clearTimeout(pressT)));
+      el.addEventListener('click', () => { if (longFired) return; editing ? openPadEditor(i) : selectPad(i); });
+      el.addEventListener('contextmenu', e => e.preventDefault());
+      padsEl.appendChild(el);
+    });
+  }
+  function buildBeats(){
+    beatsEl.innerHTML = '';
+    for (let i=0;i<S.beats;i++){ const d=document.createElement('span'); d.className='dot'+(i===0?' first':''); beatsEl.appendChild(d); }
+  }
+  function selectPad(i){
+    if (!playing){
+      S.active = i; bpm = S.pads[i]; pending = null; save();
+      if (S.padStarts) start(); else render();
+      return;
+    }
+    const current = S.quantize ? shownActive : S.active;
+    if (i === current){
+      if (pending !== null){ pending = null; render(); return; }   // second tap on the playing pad cancels a queued change
+      if (S.padStarts){ stop(); return; }                          // ...or stops, when pads start/stop the click
+      return;
+    }
+    if (S.quantize){
+      if (pending === i){ pending = null; render(); return; }
+      const heardBeat = Math.max(0, shownBeat) + 1;                // 1-based beat you are hearing now
+      const late = S.lateBeat > 0 && heardBeat >= S.lateBeat;
+      pending = i; pendingBar = shownBar + (late ? 2 : 1);
+    } else {
+      pending = null; S.active = i; bpm = S.pads[i]; save();
+    }
+    render();
+  }
+
+  // ---------- free tempo ----------
+  function nudge(d){
+    const v = clamp(bpm + d);
+    pending = null; S.active = -1; S.free = v; bpm = v;
+    shownBpm = v; shownActive = -1;
+    visualQ.forEach(q => { q.bpm = v; q.active = -1; });
+    save(); render();
+  }
+  function holdRepeat(el, d){
+    let t1 = null, t2 = null;
+    const end = () => { clearTimeout(t1); clearInterval(t2); };
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); end(); nudge(d);
+      t1 = setTimeout(() => { t2 = setInterval(() => nudge(d), 90); }, 450);
+    });
+    ['pointerup','pointerleave','pointercancel'].forEach(ev => el.addEventListener(ev, end));
+    el.addEventListener('click', e => { if (e.detail === 0) nudge(d); });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  holdRepeat($('freePlus'), 1);
+  holdRepeat($('freeMinus'), -1);
+
+  // ---------- render ----------
+  const soundName = { click:'קליק', wood:'עץ', beep:'ביפ' };
+  function renderLive(){
+    [...beatsEl.children].forEach((d,i) => d.classList.toggle('on', i === shownBeat));
+    $('nowBpm').textContent = shownBpm; $('nowTerm').textContent = term(shownBpm);
+    S.pads.slice(0, S.padCount).forEach((_, i) => {
+      const p = $('pad'+i); if (!p) return;
+      p.classList.toggle('active', i === shownActive);
+      p.classList.toggle('pending', i === pending);
+    });
+    const freeOn = shownActive < 0;
+    $('free').classList.toggle('active', freeOn);
+    $('freeVal').textContent = shownBpm;
+    $('freeLbl').textContent = freeOn ? 'קצב חופשי' : 'מתנגן עכשיו';
+    const st = $('status');
+    st.className = 'status';
+    if (editing){ st.textContent = 'מצב עריכה: לחץ על ריבוע כדי לשנות את הקצב שלו'; st.classList.add('edit'); }
+    else if (pending !== null){ const n = Math.max(1, pendingBar - shownBar); st.textContent = `הבא: ${S.pads[pending]} ${n > 1 ? 'בסוף התיבה הבאה' : 'בסוף התיבה'}`; st.classList.add('next'); }
+    else st.textContent = `${S.beats}/4 · ${S.quantize ? 'החלפה בסוף תיבה' : 'החלפה מיידית'} · ${soundName[S.sound]}`;
+  }
+  function render(){
+    if (!playing){ shownBpm = bpm; shownActive = S.active; }
+    $('play').innerHTML = playing ? ICON_STOP : ICON_PLAY;
+    $('play').setAttribute('aria-label', playing ? 'עצור' : 'הפעל');
+    $('qBar').setAttribute('aria-pressed', S.quantize); $('qNow').setAttribute('aria-pressed', !S.quantize);
+    $('sig').textContent = S.beats + '/4';
+    document.querySelectorAll('[data-sound]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sound === S.sound));
+    if (S.lateBeat > S.beats) S.lateBeat = S.beats > 1 ? S.beats : 0;
+    $('lateRow').hidden = !S.quantize;
+    $('lateVal').textContent = S.lateBeat ? `מפעמה ${S.lateBeat}` : 'כבוי';
+    $('lateHint').textContent = S.lateBeat
+      ? `${S.lateBeat === 2 ? 'לחיצה בפעמה 1' : `לחיצה בפעמות 1–${S.lateBeat - 1}`} מחליפה בסוף התיבה הנוכחית. לחיצה מפעמה ${S.lateBeat} והלאה מנגנת עוד תיבה שלמה ורק אז מחליפה.`
+      : 'כל לחיצה מחליפה בסוף התיבה הנוכחית, גם בפעמה האחרונה.';
+    $('startPlay').setAttribute('aria-pressed', !S.padStarts); $('startPad').setAttribute('aria-pressed', S.padStarts);
+    $('startHint').textContent = S.padStarts
+      ? 'כשהמטרונום עצור, לחיצה על ריבוע מפעילה אותו בקצב הזה. לחיצה נוספת על הריבוע שמתנגן עוצרת.'
+      : 'לחיצה על ריבוע רק בוחרת קצב. מפעילים ועוצרים בכפתור העגול.';
+    $('app').classList.toggle('eight', S.padCount === 8);
+    $('app').classList.toggle('lbl2', S.lblSize === 2); $('app').classList.toggle('lbl3', S.lblSize === 3);
+    $('count6').setAttribute('aria-pressed', S.padCount === 6); $('count8').setAttribute('aria-pressed', S.padCount === 8);
+    document.querySelectorAll('[data-lbl]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.lbl === S.lblSize));
+    $('accOn').setAttribute('aria-pressed', S.accent); $('accOff').setAttribute('aria-pressed', !S.accent);
+    $('app').classList.toggle('editing', editing);
+    $('doneEdit').hidden = !editing; $('gear').hidden = editing;
+    renderLive();
+  }
+
+  // ---------- controls ----------
+  $('play').onclick = () => playing ? stop() : start();
+  $('gear').onclick = () => { $('setBg').hidden = false; };
+  $('setClose').onclick = () => { $('setBg').hidden = true; };
+  $('setBg').addEventListener('click', e => { if (e.target === $('setBg')) $('setBg').hidden = true; });
+  $('qBar').onclick = () => { S.quantize = true; save(); render(); };
+  $('qNow').onclick = () => {
+    S.quantize = false;
+    if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; }
+    save(); render();
+  };
+  const setBeats = n => { S.beats = Math.max(1, Math.min(12, n)); beat %= S.beats; save(); buildBeats(); render(); };
+  $('sigMinus').onclick = () => setBeats(S.beats - 1);
+  $('sigPlus').onclick = () => setBeats(S.beats + 1);
+  document.querySelectorAll('[data-sound]').forEach(b => b.onclick = () => {
+    S.sound = b.dataset.sound; save(); render();
+    ensureAudio(); if (!playing) playSound(ctx.currentTime + 0.02, true);
+  });
+  $('accOn').onclick = () => { S.accent = true; save(); render(); };
+  $('accOff').onclick = () => { S.accent = false; save(); render(); };
+  // late-press cutoff: off, or beat 2..N of the bar
+  const setLate = v => { S.lateBeat = v < 2 ? 0 : Math.min(v, S.beats); if (S.beats < 2) S.lateBeat = 0; save(); render(); };
+  $('latePlus').onclick = () => setLate(S.lateBeat ? S.lateBeat + 1 : 2);
+  $('lateMinus').onclick = () => setLate(S.lateBeat ? (S.lateBeat === 2 ? 0 : S.lateBeat - 1) : 0);
+  $('startPlay').onclick = () => { S.padStarts = false; save(); render(); };
+  $('startPad').onclick = () => { S.padStarts = true; save(); render(); };
+  function setCount(n){
+    S.padCount = n;
+    if (pending !== null && pending >= n) pending = null;
+    if (S.active >= n){ S.free = bpm; S.active = -1; shownActive = -1; visualQ.forEach(q => { q.active = -1; }); }   // keep playing the same tempo
+    save(); buildPads(); render();
+  }
+  $('count6').onclick = () => setCount(6);
+  $('count8').onclick = () => setCount(8);
+  document.querySelectorAll('[data-lbl]').forEach(b => b.onclick = () => { S.lblSize = +b.dataset.lbl; save(); render(); });
+  $('vol').value = S.vol;
+  $('vol').oninput = e => { S.vol = +e.target.value; if (master) master.gain.value = S.vol; save(); };
+  $('editBtn').onclick = () => { editing = true; $('setBg').hidden = true; render(); };
+  $('doneEdit').onclick = () => { editing = false; render(); };
+  document.addEventListener('keydown', e => {
+    if (!$('sheetBg').hidden || !$('setBg').hidden) { if (e.key === 'Escape'){ $('setBg').hidden = true; } return; }
+    if (e.code === 'Space'){ e.preventDefault(); playing ? stop() : start(); }
+    if (e.key === 'ArrowUp' || e.key === '+'){ e.preventDefault(); nudge(1); }
+    if (e.key === 'ArrowDown' || e.key === '-'){ e.preventDefault(); nudge(-1); }
+    const n = parseInt(e.key, 10); if (n >= 1 && n <= S.padCount) selectPad(n-1);
+  });
+
+  // ---------- pad editor ----------
+  let editIdx = 0, taps = [];
+  function openPadEditor(i){
+    editIdx = i; taps = [];
+    $('sheetTitle').textContent = `עריכת ריבוע ${i+1}`;
+    $('bpmIn').value = S.pads[i];
+    $('nameIn').value = S.names[i] || '';
+    $('nameIn').placeholder = `ריק = ${term(S.pads[i])}`;
+    $('sheetBg').hidden = false;
+  }
+  function closePadEditor(){
+    const v = clamp($('bpmIn').value);
+    S.names[editIdx] = $('nameIn').value.trim().slice(0, 24);
+    S.pads[editIdx] = v;
+    if (editIdx === S.active) bpm = v;
+    save(); $('sheetBg').hidden = true; buildPads(); render();
+  }
+  document.querySelectorAll('.steps4 button').forEach(b => b.onclick = () => {
+    $('bpmIn').value = clamp(+$('bpmIn').value + +b.dataset.d);
+  });
+  $('tapBtn').onclick = () => {
+    const now = performance.now();
+    if (taps.length && now - taps[taps.length-1] > 2000) taps = [];
+    taps.push(now); if (taps.length > 6) taps.shift();
+    if (taps.length >= 2) $('bpmIn').value = clamp(60000 / ((taps[taps.length-1] - taps[0]) / (taps.length - 1)));
+  };
+  $('doneBtn').onclick = closePadEditor;
+  $('sheetBg').addEventListener('click', e => { if (e.target === $('sheetBg')) closePadEditor(); });
+  $('bpmIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
+  $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
+
+  buildPads(); buildBeats(); render(); requestAnimationFrame(frame);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+})();
+</script>
+
+</body>
+</html>
