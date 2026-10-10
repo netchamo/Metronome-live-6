@@ -71,13 +71,17 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .dot.first.on{background:var(--brass)}
 
 /* pads: take every pixel left */
-.pads{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:var(--gap);min-height:0}
+.app{--cols:3;--rows:2;--lbl:1}
+.app.eight{--cols:4;--rows:2}
+.pads{display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);gap:var(--gap);min-height:0}
 .pad{position:relative;container-type:size;border-radius:18px;background:var(--surface);border:2px solid var(--line);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;min-width:0;overflow:hidden;
   transition:background .12s,border-color .12s,transform .06s}
 .pad:active{transform:scale(.98)}
 .pad .n{font-family:var(--font-num);font-weight:800;font-size:9vmin;font-size:clamp(34px,min(46cqh,36cqw),190px);line-height:1;font-variant-numeric:tabular-nums}
-.pad .t{color:var(--muted);font-style:italic;font-family:var(--font-num);font-size:clamp(12px,min(9cqh,7cqw),22px)}
+.pad .t{color:var(--muted);font-style:italic;font-family:var(--font-num);font-size:clamp(calc(12px * var(--lbl)),min(calc(9cqh * var(--lbl)),calc(7cqw * var(--lbl))),calc(22px * var(--lbl)));line-height:1.15}
+.app.lbl2{--lbl:1.5}.app.lbl3{--lbl:2.1}
+.app.lbl2 .pad .n,.app.lbl3 .pad .n{font-size:clamp(30px,min(38cqh,34cqw),170px)}
 .pad .k{position:absolute;top:8px;inset-inline-start:12px;color:var(--muted);font-family:var(--font-num);font-size:13px}
 .pad.active{background:var(--brass);border-color:var(--brass);color:var(--brass-ink)}
 .pad.active .t,.pad.active .k{color:var(--brass-ink);opacity:.75}
@@ -88,7 +92,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
 /* free tempo bar: two pads wide */
 .freerow{display:flex;justify-content:center}
-.free{width:calc((100% - 2 * var(--gap)) / 3 * 2 + var(--gap));height:clamp(64px,14vh,124px);display:flex;align-items:stretch;gap:var(--gap);
+.free{width:calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols) * 2 + var(--gap));height:clamp(64px,14vh,124px);display:flex;align-items:stretch;gap:var(--gap);
   background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:6px;transition:background .12s,border-color .12s}
 .free.active{border-color:var(--brass);background:#2d2516}
 .free .nudge{flex:0 0 30%;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);
@@ -121,11 +125,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .steps4 button{height:52px;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);font-weight:700;font-size:18px}
 .tap{border:1px dashed var(--line)}
 .hint{color:var(--muted);font-size:13px;text-align:center;margin:0}
+.latehint{flex-basis:100%;text-align:start}
+.namerow{display:grid;gap:6px}
+.namerow .lbl{color:var(--muted);font-size:15px;font-weight:600}
+.namerow input{height:52px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:19px;padding-inline:14px}
+.pad .t{max-width:92%;overflow:hidden;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.latev{min-width:96px;font-size:16px}
 
 /* phone portrait: 2 x 3 */
 @media (max-width:640px) and (orientation:portrait){
-  .pads{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(3,1fr)}
-  .free{width:100%}
+  .app{--cols:2;--rows:3}
   .now .term{display:none}
 }
 /* short screens (phone landscape): shrink the chrome, keep the pads big */
@@ -141,6 +150,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   .dot{height:6px}.dot.first{height:12px}
   .free{height:clamp(52px,17vh,80px)}
 }
+/* 8 pads standing up (phone or tablet): 2 x 4 */
+@media (orientation:portrait){ .app.eight{--cols:2;--rows:4} }
 @media (prefers-reduced-motion:reduce){.pad.pending{animation:none;background:#24332e}}
 </style>
 </head>
@@ -182,6 +193,28 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       <span class="lbl">החלפת קצב</span>
       <div class="seg"><button class="chip" id="qBar">בסוף תיבה</button><button class="chip" id="qNow">מיד</button></div>
     </div>
+    <div class="setrow" id="lateRow">
+      <span class="lbl">לחיצה מאוחרת נכנסת בתיבה שאחרי</span>
+      <div class="seg" style="align-items:center">
+        <button class="step" id="lateMinus" aria-label="מוקדם יותר">−</button>
+        <span class="sig latev" id="lateVal">כבוי</span>
+        <button class="step" id="latePlus" aria-label="מאוחר יותר">+</button>
+      </div>
+      <p class="hint latehint" id="lateHint"></p>
+    </div>
+    <div class="setrow">
+      <span class="lbl">הפעלה ועצירה</span>
+      <div class="seg"><button class="chip" id="startPlay">כפתור עגול בלבד</button><button class="chip" id="startPad">גם מהריבועים</button></div>
+      <p class="hint latehint" id="startHint"></p>
+    </div>
+    <div class="setrow">
+      <span class="lbl">מספר ריבועים</span>
+      <div class="seg"><button class="chip" id="count6">6</button><button class="chip" id="count8">8</button></div>
+    </div>
+    <div class="setrow">
+      <span class="lbl">גודל הטקסט בריבועים</span>
+      <div class="seg"><button class="chip" data-lbl="1">רגיל</button><button class="chip" data-lbl="2">גדול</button><button class="chip" data-lbl="3">גדול מאוד</button></div>
+    </div>
     <div class="setrow">
       <span class="lbl">משקל</span>
       <div class="seg" style="align-items:center">
@@ -216,6 +249,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   <div class="sheet" role="dialog" aria-labelledby="sheetTitle">
     <h2 id="sheetTitle">ריבוע 1</h2>
     <div class="valrow"><input id="bpmIn" type="number" inputmode="numeric" min="20" max="300"></div>
+    <label class="namerow" for="nameIn"><span class="lbl">טקסט מתחת למספר</span>
+      <input id="nameIn" type="text" dir="auto" maxlength="24" placeholder="למשל: פזמון, בית, סולו" autocomplete="off"></label>
     <div class="steps4">
       <button data-d="-5">−5</button><button data-d="-1">−1</button>
       <button data-d="1">+1</button><button data-d="5">+5</button>
@@ -233,13 +268,21 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
   const ICON_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></svg>';
   const DEFAULT_PADS = [110,120,128,146,150,156];
+  const EXTRA_PADS = [100,170];   // pads 7-8 when 8 pads are on
 
   // ---------- state ----------
-  const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8 };
+  const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8, lateBeat:0, padStarts:false, names:['','','','','',''], padCount:6, lblSize:1 };
   try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch(e){}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
   if (S.padsVersion !== 2){ S.pads = DEFAULT_PADS.slice(); S.padsVersion = 2; S.active = Math.min(S.active, 5); save(); }
   if (typeof S.free !== 'number') S.free = 120;
+  if (!Array.isArray(S.names)) S.names = [];
+  while (S.pads.length < 8) S.pads.push(EXTRA_PADS[S.pads.length - 6] ?? 120);
+  while (S.names.length < 8) S.names.push('');
+  if (S.padCount !== 8) S.padCount = 6;
+  if (![1,2,3].includes(S.lblSize)) S.lblSize = 1;
+  if (S.active >= S.padCount){ S.free = S.pads[S.active]; S.active = -1; }
+  const padLabel = i => (S.names[i] || '').trim() || term(S.pads[i]);
 
   let bpm = S.active < 0 ? S.free : S.pads[S.active];
   let pending = null;
@@ -291,24 +334,24 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
   // ---------- scheduler ----------
   let nextTime = 0, beat = 0, timer = null;
+  let schedBar = 0, shownBar = 0, pendingBar = 0;   // bar numbers: scheduled / audible / when the queued tempo starts
   const visualQ = [];
   const LOOKAHEAD = 0.12;
   function tick(){
     if (ctx.state !== 'running') return;
-    if (nextTime < ctx.currentTime - 0.2){ visualQ.length = 0; beat = 0; nextTime = ctx.currentTime + 0.05; }
+    if (nextTime < ctx.currentTime - 0.2){ visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.05; }
     while (nextTime < ctx.currentTime + LOOKAHEAD){
+      if (beat === 0 && pending !== null && schedBar >= pendingBar){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
       playSound(nextTime, beat === 0);
-      visualQ.push({ t: nextTime, beat, bpm, active: S.active });
+      visualQ.push({ t: nextTime, beat, bar: schedBar, bpm, active: S.active });
       nextTime += 60 / bpm;
       beat = (beat + 1) % S.beats;
-      if (beat === 0 && pending !== null){
-        S.active = pending; bpm = S.pads[pending]; pending = null; save();
-      }
+      if (beat === 0) schedBar++;
     }
   }
   function start(){
     ensureAudio();
-    playing = true; beat = 0; nextTime = ctx.currentTime + 0.06;
+    playing = true; beat = 0; schedBar = 0; shownBar = 0; nextTime = ctx.currentTime + 0.06;
     timer = setInterval(tick, 25); tick();
     requestWake(); render();
   }
@@ -324,7 +367,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     if (playing && ctx){
       let changed = false;
       while (visualQ.length && visualQ[0].t <= ctx.currentTime){
-        const v = visualQ.shift(); shownBeat = v.beat; shownActive = v.active; shownBpm = v.bpm; changed = true;
+        const v = visualQ.shift(); shownBeat = v.beat; shownBar = v.bar; shownActive = v.active; shownBpm = v.bpm; changed = true;
       }
       if (changed) renderLive();
     }
@@ -339,7 +382,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     if (!playing || !ctx) return;
     requestWake();
     const restart = () => {
-      visualQ.length = 0; beat = 0; nextTime = ctx.currentTime + 0.08;
+      visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.08;
       if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
     };
     if (ctx.state !== 'running') ctx.resume().then(restart).catch(() => {});
@@ -352,13 +395,14 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
   // ---------- pads ----------
   const padsEl = $('pads'), beatsEl = $('beats');
+  const escapeHtml = t => t.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function buildPads(){
     padsEl.innerHTML = '';
-    S.pads.forEach((b, i) => {
+    S.pads.slice(0, S.padCount).forEach((b, i) => {
       const el = document.createElement('button');
       el.className = 'pad'; el.id = 'pad'+i;
       el.setAttribute('aria-label', `קצב ${b}`);
-      el.innerHTML = `<span class="k">${i+1}</span><span class="n">${b}</span><span class="t">${term(b)}</span>`;
+      el.innerHTML = `<span class="k">${i+1}</span><span class="n">${b}</span><span class="t" dir="auto">${escapeHtml(padLabel(i))}</span>`;
       let pressT = null, longFired = false;
       el.addEventListener('pointerdown', () => { longFired = false; pressT = setTimeout(() => { longFired = true; openPadEditor(i); }, 600); });
       ['pointerup','pointerleave','pointercancel'].forEach(ev => el.addEventListener(ev, () => clearTimeout(pressT)));
@@ -372,9 +416,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     for (let i=0;i<S.beats;i++){ const d=document.createElement('span'); d.className='dot'+(i===0?' first':''); beatsEl.appendChild(d); }
   }
   function selectPad(i){
-    if (!playing){ S.active = i; bpm = S.pads[i]; pending = null; save(); render(); return; }
+    if (!playing){
+      S.active = i; bpm = S.pads[i]; pending = null; save();
+      if (S.padStarts) start(); else render();
+      return;
+    }
+    const current = S.quantize ? shownActive : S.active;
+    if (i === current){
+      if (pending !== null){ pending = null; render(); return; }   // second tap on the playing pad cancels a queued change
+      if (S.padStarts){ stop(); return; }                          // ...or stops, when pads start/stop the click
+      return;
+    }
     if (S.quantize){
-      pending = (i === S.active) ? null : (pending === i ? null : i);
+      if (pending === i){ pending = null; render(); return; }
+      const heardBeat = Math.max(0, shownBeat) + 1;                // 1-based beat you are hearing now
+      const late = S.lateBeat > 0 && heardBeat >= S.lateBeat;
+      pending = i; pendingBar = shownBar + (late ? 2 : 1);
     } else {
       pending = null; S.active = i; bpm = S.pads[i]; save();
     }
@@ -408,7 +465,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   function renderLive(){
     [...beatsEl.children].forEach((d,i) => d.classList.toggle('on', i === shownBeat));
     $('nowBpm').textContent = shownBpm; $('nowTerm').textContent = term(shownBpm);
-    S.pads.forEach((_, i) => {
+    S.pads.slice(0, S.padCount).forEach((_, i) => {
       const p = $('pad'+i); if (!p) return;
       p.classList.toggle('active', i === shownActive);
       p.classList.toggle('pending', i === pending);
@@ -420,7 +477,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     const st = $('status');
     st.className = 'status';
     if (editing){ st.textContent = 'מצב עריכה: לחץ על ריבוע כדי לשנות את הקצב שלו'; st.classList.add('edit'); }
-    else if (pending !== null){ st.textContent = `הבא: ${S.pads[pending]} בסוף התיבה`; st.classList.add('next'); }
+    else if (pending !== null){ const n = Math.max(1, pendingBar - shownBar); st.textContent = `הבא: ${S.pads[pending]} ${n > 1 ? 'בסוף התיבה הבאה' : 'בסוף התיבה'}`; st.classList.add('next'); }
     else st.textContent = `${S.beats}/4 · ${S.quantize ? 'החלפה בסוף תיבה' : 'החלפה מיידית'} · ${soundName[S.sound]}`;
   }
   function render(){
@@ -430,6 +487,20 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     $('qBar').setAttribute('aria-pressed', S.quantize); $('qNow').setAttribute('aria-pressed', !S.quantize);
     $('sig').textContent = S.beats + '/4';
     document.querySelectorAll('[data-sound]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sound === S.sound));
+    if (S.lateBeat > S.beats) S.lateBeat = S.beats > 1 ? S.beats : 0;
+    $('lateRow').hidden = !S.quantize;
+    $('lateVal').textContent = S.lateBeat ? `מפעמה ${S.lateBeat}` : 'כבוי';
+    $('lateHint').textContent = S.lateBeat
+      ? `${S.lateBeat === 2 ? 'לחיצה בפעמה 1' : `לחיצה בפעמות 1–${S.lateBeat - 1}`} מחליפה בסוף התיבה הנוכחית. לחיצה מפעמה ${S.lateBeat} והלאה מנגנת עוד תיבה שלמה ורק אז מחליפה.`
+      : 'כל לחיצה מחליפה בסוף התיבה הנוכחית, גם בפעמה האחרונה.';
+    $('startPlay').setAttribute('aria-pressed', !S.padStarts); $('startPad').setAttribute('aria-pressed', S.padStarts);
+    $('startHint').textContent = S.padStarts
+      ? 'כשהמטרונום עצור, לחיצה על ריבוע מפעילה אותו בקצב הזה. לחיצה נוספת על הריבוע שמתנגן עוצרת.'
+      : 'לחיצה על ריבוע רק בוחרת קצב. מפעילים ועוצרים בכפתור העגול.';
+    $('app').classList.toggle('eight', S.padCount === 8);
+    $('app').classList.toggle('lbl2', S.lblSize === 2); $('app').classList.toggle('lbl3', S.lblSize === 3);
+    $('count6').setAttribute('aria-pressed', S.padCount === 6); $('count8').setAttribute('aria-pressed', S.padCount === 8);
+    document.querySelectorAll('[data-lbl]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.lbl === S.lblSize));
     $('accOn').setAttribute('aria-pressed', S.accent); $('accOff').setAttribute('aria-pressed', !S.accent);
     $('app').classList.toggle('editing', editing);
     $('doneEdit').hidden = !editing; $('gear').hidden = editing;
@@ -456,6 +527,21 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   });
   $('accOn').onclick = () => { S.accent = true; save(); render(); };
   $('accOff').onclick = () => { S.accent = false; save(); render(); };
+  // late-press cutoff: off, or beat 2..N of the bar
+  const setLate = v => { S.lateBeat = v < 2 ? 0 : Math.min(v, S.beats); if (S.beats < 2) S.lateBeat = 0; save(); render(); };
+  $('latePlus').onclick = () => setLate(S.lateBeat ? S.lateBeat + 1 : 2);
+  $('lateMinus').onclick = () => setLate(S.lateBeat ? (S.lateBeat === 2 ? 0 : S.lateBeat - 1) : 0);
+  $('startPlay').onclick = () => { S.padStarts = false; save(); render(); };
+  $('startPad').onclick = () => { S.padStarts = true; save(); render(); };
+  function setCount(n){
+    S.padCount = n;
+    if (pending !== null && pending >= n) pending = null;
+    if (S.active >= n){ S.free = bpm; S.active = -1; shownActive = -1; visualQ.forEach(q => { q.active = -1; }); }   // keep playing the same tempo
+    save(); buildPads(); render();
+  }
+  $('count6').onclick = () => setCount(6);
+  $('count8').onclick = () => setCount(8);
+  document.querySelectorAll('[data-lbl]').forEach(b => b.onclick = () => { S.lblSize = +b.dataset.lbl; save(); render(); });
   $('vol').value = S.vol;
   $('vol').oninput = e => { S.vol = +e.target.value; if (master) master.gain.value = S.vol; save(); };
   $('editBtn').onclick = () => { editing = true; $('setBg').hidden = true; render(); };
@@ -465,19 +551,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     if (e.code === 'Space'){ e.preventDefault(); playing ? stop() : start(); }
     if (e.key === 'ArrowUp' || e.key === '+'){ e.preventDefault(); nudge(1); }
     if (e.key === 'ArrowDown' || e.key === '-'){ e.preventDefault(); nudge(-1); }
-    const n = parseInt(e.key, 10); if (n >= 1 && n <= 6) selectPad(n-1);
+    const n = parseInt(e.key, 10); if (n >= 1 && n <= S.padCount) selectPad(n-1);
   });
 
   // ---------- pad editor ----------
   let editIdx = 0, taps = [];
   function openPadEditor(i){
     editIdx = i; taps = [];
-    $('sheetTitle').textContent = `ריבוע ${i+1}: קביעת BPM`;
+    $('sheetTitle').textContent = `עריכת ריבוע ${i+1}`;
     $('bpmIn').value = S.pads[i];
+    $('nameIn').value = S.names[i] || '';
+    $('nameIn').placeholder = `ריק = ${term(S.pads[i])}`;
     $('sheetBg').hidden = false;
   }
   function closePadEditor(){
     const v = clamp($('bpmIn').value);
+    S.names[editIdx] = $('nameIn').value.trim().slice(0, 24);
     S.pads[editIdx] = v;
     if (editIdx === S.active) bpm = v;
     save(); $('sheetBg').hidden = true; buildPads(); render();
@@ -494,6 +583,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   $('doneBtn').onclick = closePadEditor;
   $('sheetBg').addEventListener('click', e => { if (e.target === $('sheetBg')) closePadEditor(); });
   $('bpmIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
+  $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
 
   buildPads(); buildBeats(); render(); requestAnimationFrame(frame);
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
