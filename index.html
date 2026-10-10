@@ -16,7 +16,7 @@
 @font-face{font-family:"Rubik";src:url(rubik.woff) format("woff");font-weight:300 900;font-style:normal;font-display:swap}
 @font-face{font-family:"Rubik";src:url(rubik-italic.woff) format("woff");font-weight:300 900;font-style:italic;font-display:swap}
 @font-face{font-family:"Assistant";src:url(assistant.woff) format("woff");font-weight:200 800;font-style:normal;font-display:swap}
-/* Layout: stage tool — slim transport bar, beat strip, six pads take all remaining space, free-tempo bar under them. Settings live behind a gear. */
+/* Layout: stage tool — transport bar with TAP, beat strip, free-tempo bar, then a scrolling window of pads (6 or 8 visible) that fills the rest. Settings live behind a gear. */
 :root{
   --bg:#15130f;
   --surface:#211e18;
@@ -46,19 +46,22 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:1
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
 button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
 
-.app{height:100%;display:grid;grid-template-rows:auto auto 1fr auto;gap:var(--gap);max-width:1400px;margin-inline:auto}
+.app{height:100%;display:grid;grid-template-rows:auto auto auto 1fr;gap:var(--gap);max-width:1400px;margin-inline:auto}
 
 /* transport */
 .top{display:flex;align-items:center;gap:14px;min-width:0}
 .play{width:64px;height:64px;border-radius:50%;background:var(--brass);color:var(--brass-ink);display:grid;place-items:center;flex:none;transition:transform .08s}
 .play:active{transform:scale(.94)}
 .play svg{width:28px;height:28px}
-.now{display:flex;align-items:baseline;gap:8px;flex:none}
-.now .bpm{font-family:var(--font-num);font-weight:800;font-size:clamp(40px,7vmin,64px);line-height:1;font-variant-numeric:tabular-nums}
-.now .term{color:var(--brass);font-style:italic;font-family:var(--font-num);font-size:15px}
-.status{flex:1;min-width:0;color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.status.next{color:var(--pending);font-weight:700;font-size:16px}
-.status.edit{color:var(--brass);font-weight:700}
+.tapbox{flex:1;min-width:0;align-self:stretch;min-height:56px;border-radius:14px;background:var(--surface);border:2px dashed var(--line);
+  display:flex;align-items:center;justify-content:center;gap:14px;padding-inline:12px;touch-action:none;transition:background .08s,border-color .08s}
+.tapbox .tw{font-family:var(--font-num);font-weight:800;font-size:clamp(20px,4vmin,30px);letter-spacing:.12em;color:var(--muted)}
+.tapbox .tv{font-family:var(--font-num);font-weight:800;font-size:clamp(26px,5.5vmin,46px);line-height:1;font-variant-numeric:tabular-nums}
+.tapbox .ts{color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tapbox .ts.next{color:var(--pending);font-weight:700;font-size:15px}
+.tapbox.hit{background:var(--surface-2);border-color:var(--brass)}
+.tapbox.hit .tw{color:var(--brass)}
+.editnote{flex:1;min-width:0;color:var(--brass);font-weight:700;font-size:15px}
 .iconbtn{width:56px;height:56px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:grid;place-items:center;flex:none;color:var(--muted)}
 .iconbtn svg{width:26px;height:26px}
 .donebtn{height:56px;padding-inline:20px;border-radius:14px;background:var(--brass);color:var(--brass-ink);font-weight:700;font-size:17px;flex:none}
@@ -68,12 +71,21 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .dot{flex:1;height:8px;border-radius:4px;background:var(--surface-2);transition:background .05s}
 .dot.first{height:16px;border-radius:6px}
 .dot.on{background:var(--fg)}
+.dot.mid{height:12px;border-radius:5px}
 .dot.first.on{background:var(--brass)}
+.dot.mid.on{background:#e9cf95}
 
 /* pads: take every pixel left */
 .app{--cols:3;--rows:2;--lbl:1}
 .app.eight{--cols:4;--rows:2}
-.pads{display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);gap:var(--gap);min-height:0}
+.padswrap{position:relative;min-height:0;display:grid}
+.padsview{min-height:0;overflow-y:auto;overflow-x:hidden;scroll-snap-type:y mandatory;scrollbar-width:none;overscroll-behavior:contain}
+.padsview::-webkit-scrollbar{display:none}
+.padsview.paged{overflow-y:hidden;scroll-snap-type:none;touch-action:none}
+.pads{display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-auto-rows:var(--rowH,120px);gap:var(--gap)}
+.pad{scroll-snap-align:start}
+.pager{position:absolute;top:0;bottom:0;left:calc(-1 * var(--safe-l) + 3px);width:4px;border-radius:2px;background:var(--surface-2);pointer-events:none}
+.pager i{position:absolute;left:0;right:0;border-radius:2px;background:var(--muted);transition:top .15s}
 .pad{position:relative;container-type:size;border-radius:18px;background:var(--surface);border:2px solid var(--line);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;min-width:0;overflow:hidden;
   transition:background .12s,border-color .12s,transform .06s}
@@ -83,8 +95,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .app.lbl2{--lbl:1.5}.app.lbl3{--lbl:2.1}
 .app.lbl2 .pad .n,.app.lbl3 .pad .n{font-size:clamp(30px,min(38cqh,34cqw),170px)}
 .pad .k{position:absolute;top:8px;inset-inline-start:12px;color:var(--muted);font-family:var(--font-num);font-size:13px}
+.pad .m{position:absolute;top:7px;left:10px;color:var(--muted);font-family:var(--font-num);font-weight:700;font-size:13px;direction:ltr}
+.pad .m.odd{color:var(--brass);font-size:15px}
 .pad.active{background:var(--brass);border-color:var(--brass);color:var(--brass-ink)}
-.pad.active .t,.pad.active .k{color:var(--brass-ink);opacity:.75}
+.pad.active .t,.pad.active .k,.pad.active .m{color:var(--brass-ink);opacity:.75}
 .pad.pending{border-color:var(--pending);border-style:dashed;animation:pend .5s ease-in-out infinite alternate}
 @keyframes pend{from{background:var(--surface)}to{background:#24332e}}
 .editing .pad{border-style:dotted;border-color:var(--brass)}
@@ -92,13 +106,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
 /* free tempo bar: two pads wide */
 .freerow{display:flex;justify-content:center}
-.free{width:calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols) * 2 + var(--gap));height:clamp(64px,14vh,124px);display:flex;align-items:stretch;gap:var(--gap);
+.free{width:calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols) * 2 + var(--gap));height:clamp(64px,12vh,110px);display:flex;align-items:stretch;gap:var(--gap);
   background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:6px;transition:background .12s,border-color .12s}
 .free.active{border-color:var(--brass);background:#2d2516}
 .free .nudge{flex:0 0 30%;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);
   font-size:clamp(34px,8vh,64px);font-weight:700;line-height:1;display:grid;place-items:center;touch-action:none;transition:transform .06s}
 .free .nudge:active{transform:scale(.96);background:var(--line)}
-.free .mid{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
+.free .mid{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border-radius:12px}
+.free .mid:active{background:var(--surface-2)}
+.free .fm{direction:ltr;unicode-bidi:isolate;color:var(--fg);font-family:var(--font-num);font-weight:700}
 .free .fv{font-family:var(--font-num);font-weight:800;font-size:clamp(30px,7vh,60px);line-height:1;font-variant-numeric:tabular-nums}
 .free.active .fv{color:var(--brass)}
 .free .fl{color:var(--muted);font-size:12px;letter-spacing:.04em;white-space:nowrap}
@@ -122,7 +138,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .valrow input{width:160px;font-family:var(--font-num);font-weight:800;font-size:56px;text-align:center;background:var(--bg);
   color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:4px;font-variant-numeric:tabular-nums}
 .steps4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.steps4 button{height:52px;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);font-weight:700;font-size:18px}
+.steps4 button{direction:ltr;unicode-bidi:isolate;height:52px;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);font-weight:700;font-size:18px}
 .tap{border:1px dashed var(--line)}
 .hint{color:var(--muted);font-size:13px;text-align:center;margin:0}
 .latehint{flex-basis:100%;text-align:start}
@@ -131,11 +147,16 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .namerow input{height:52px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:19px;padding-inline:14px}
 .pad .t{max-width:94%;overflow:hidden;padding-inline:.3em;padding-block:.06em .1em;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
 .latev{min-width:96px;font-size:16px}
+.meters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.meters button{height:50px;border-radius:12px;background:var(--surface-2);font-family:var(--font-num);font-weight:700;font-size:19px;direction:ltr;color:var(--muted)}
+.meters button[aria-pressed="true"]{background:var(--brass);color:var(--brass-ink)}
+.setcol{display:grid;gap:8px}
+.setcol .lbl{color:var(--muted);font-size:15px;font-weight:600}
 
 /* phone portrait: 2 x 3 */
 @media (max-width:640px) and (orientation:portrait){
   .app{--cols:2;--rows:3}
-  .now .term{display:none}
+  .tapbox .ts{display:none}
 }
 /* short screens (phone landscape): shrink the chrome, keep the pads big */
 @media (max-height:520px){
@@ -143,12 +164,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   body{--safe-t:max(6px,calc(env(safe-area-inset-top,0px) + 4px));--safe-b:max(6px,calc(env(safe-area-inset-bottom,0px) + 2px))}
   .play{width:48px;height:48px}
   .play svg{width:22px;height:22px}
-  .now .bpm{font-size:34px}
+  .tapbox{min-height:46px}
   .iconbtn{width:46px;height:46px}
   .donebtn{height:46px}
   .beats{height:14px}
   .dot{height:6px}.dot.first{height:12px}
-  .free{height:clamp(52px,17vh,80px)}
+  .free{height:clamp(48px,15vh,72px)}
 }
 /* 8 pads standing up (phone or tablet): 2 x 4 */
 @media (orientation:portrait){ .app.eight{--cols:2;--rows:4} }
@@ -161,11 +182,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 <div class="app" id="app" dir="rtl">
   <div class="top">
     <button class="play" id="play" aria-label="הפעל"></button>
-    <div class="now">
-      <span class="bpm" id="nowBpm">120</span>
-      <span class="term" id="nowTerm">Allegro</span>
-    </div>
-    <div class="status" id="status"></div>
+    <button class="tapbox" id="tapTop" aria-label="הקש בקצב כדי לקבוע טמפו">
+      <span class="tw">TAP</span>
+      <span class="tv" id="tapVal" hidden></span>
+      <span class="ts" id="tapSub">הקש בקצב</span>
+    </button>
+    <div class="editnote" id="editNote" hidden>מצב עריכה: לחץ על ריבוע כדי לשנות את הקצב והטקסט שלו</div>
     <button class="donebtn" id="doneEdit" hidden>סיום עריכה</button>
     <button class="iconbtn" id="gear" aria-label="הגדרות">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -174,14 +196,17 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
   <div class="beats" id="beats" aria-hidden="true"></div>
 
-  <div class="pads" id="pads"></div>
-
   <div class="freerow">
     <div class="free" id="free">
       <button class="nudge" id="freePlus" aria-label="הגבר קצב ב־1">+</button>
-      <div class="mid"><span class="fv" id="freeVal">120</span><span class="fl" id="freeLbl">קצב חופשי</span></div>
+      <button class="mid" id="freeMid" aria-label="הקלדת קצב ובחירת משקל"><span class="fv" id="freeVal">120</span><span class="fl"><span id="freeLbl">קצב חופשי</span> · <span class="fm" id="freeMeter">4/4</span> ▾</span></button>
       <button class="nudge" id="freeMinus" aria-label="הורד קצב ב־1">−</button>
     </div>
+  </div>
+
+  <div class="padswrap">
+    <div class="padsview" id="padsView"><div class="pads" id="pads"></div></div>
+    <div class="pager" id="pager" aria-hidden="true"><i id="pagerThumb"></i></div>
   </div>
 </div>
 
@@ -208,20 +233,18 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       <p class="hint latehint" id="startHint"></p>
     </div>
     <div class="setrow">
-      <span class="lbl">מספר ריבועים</span>
+      <span class="lbl">ריבועים במסך</span>
       <div class="seg"><button class="chip" id="count6">6</button><button class="chip" id="count8">8</button></div>
+      <p class="hint latehint" id="countHint"></p>
+    </div>
+    <div class="setrow">
+      <span class="lbl">מעבר בין מסכי הריבועים</span>
+      <div class="seg"><button class="chip" id="scrollRow">שורה אחר שורה</button><button class="chip" id="scrollPage">מסך שלם</button></div>
+      <p class="hint latehint" id="scrollHint"></p>
     </div>
     <div class="setrow">
       <span class="lbl">גודל הטקסט בריבועים</span>
       <div class="seg"><button class="chip" data-lbl="1">רגיל</button><button class="chip" data-lbl="2">גדול</button><button class="chip" data-lbl="3">גדול מאוד</button></div>
-    </div>
-    <div class="setrow">
-      <span class="lbl">משקל</span>
-      <div class="seg" style="align-items:center">
-        <button class="step" id="sigMinus" aria-label="פחות פעמות">−</button>
-        <span class="sig" id="sig">4/4</span>
-        <button class="step" id="sigPlus" aria-label="יותר פעמות">+</button>
-      </div>
     </div>
     <div class="setrow">
       <span class="lbl">צליל</span>
@@ -239,8 +262,23 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       <span class="lbl">עוצמה</span>
       <input type="range" dir="ltr" class="vol" id="vol" min="0" max="1" step="0.01" aria-label="עוצמה">
     </div>
-    <button class="wide" id="editBtn">✎ עריכת הקצבים בריבועים</button>
+    <button class="wide" id="editBtn">✎ עריכת הריבועים (קצב, משקל, טקסט)</button>
     <button class="primary" id="setClose">סגור</button>
+  </div>
+</div>
+
+<!-- free tempo meter -->
+<div class="sheet-bg" id="fmBg" dir="rtl" hidden>
+  <div class="sheet" role="dialog" aria-labelledby="fmTitle">
+    <h2 id="fmTitle">קצב חופשי</h2>
+    <div class="valrow"><input id="freeIn" type="number" inputmode="numeric" min="20" max="300" aria-label="קצב BPM"></div>
+    <div class="steps4">
+      <button data-fd="-5">−5</button><button data-fd="-1">−1</button>
+      <button data-fd="1">+1</button><button data-fd="5">+5</button>
+    </div>
+    <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterFree"></div></div>
+    <button class="primary" id="fmOk">אישור</button>
+    <p class="hint">הקצב משתנה מיד. אם המטרונום מנגן, משקל חדש נכנס בתחילת התיבה הבאה.</p>
   </div>
 </div>
 
@@ -251,6 +289,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     <div class="valrow"><input id="bpmIn" type="number" inputmode="numeric" min="20" max="300"></div>
     <label class="namerow" for="nameIn"><span class="lbl">טקסט מתחת למספר</span>
       <input id="nameIn" type="text" dir="auto" maxlength="24" placeholder="למשל: פזמון, בית, סולו" autocomplete="off"></label>
+    <div class="setcol"><span class="lbl">משקל</span><div class="meters" id="meterPad"></div></div>
     <div class="steps4">
       <button data-d="-5">−5</button><button data-d="-1">−1</button>
       <button data-d="1">+1</button><button data-d="5">+5</button>
@@ -268,29 +307,43 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
   const ICON_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></svg>';
   const DEFAULT_PADS = [110,120,128,146,150,156];
-  const EXTRA_PADS = [100,170];   // pads 7-8 when 8 pads are on
+  const MORE_PADS = [100,170,90,115,125,135,140,165,175,180];   // pads 7-16
+  const TOTAL = 16;
+  const METERS = ['1/4','2/4','3/4','4/4','5/4','6/4','5/8','6/8','7/8'];
+  const GROUPS = { '5/8':[3], '6/8':[3], '7/8':[2,4] };          // secondary accents (0-based beats): 3+2, 3+3, 2+2+3
 
   // ---------- state ----------
-  const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8, lateBeat:0, padStarts:false, names:['','','','','',''], padCount:6, lblSize:1 };
+  const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8,
+              lateBeat:0, padStarts:true, names:[], padCount:6, lblSize:1, meters:null, freeMeter:null, scrollMode:'page' };
   try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch(e){}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
   if (S.padsVersion !== 2){ S.pads = DEFAULT_PADS.slice(); S.padsVersion = 2; S.active = Math.min(S.active, 5); save(); }
   if (typeof S.free !== 'number') S.free = 120;
   if (!Array.isArray(S.names)) S.names = [];
-  while (S.pads.length < 8) S.pads.push(EXTRA_PADS[S.pads.length - 6] ?? 120);
-  while (S.names.length < 8) S.names.push('');
+  while (S.pads.length < TOTAL) S.pads.push(MORE_PADS[S.pads.length - 6] ?? 120);
+  while (S.names.length < TOTAL) S.names.push('');
+  // meters: carry over the old single meter (beats/4) for everyone the first time
+  const oldMeter = (S.beats >= 1 && S.beats <= 6) ? `${S.beats}/4` : '4/4';
+  if (!Array.isArray(S.meters)) S.meters = [];
+  while (S.meters.length < TOTAL) S.meters.push(oldMeter);
+  S.meters = S.meters.map(m => METERS.includes(m) ? m : '4/4');
+  if (!METERS.includes(S.freeMeter)) S.freeMeter = oldMeter;
   if (S.padCount !== 8) S.padCount = 6;
   if (![1,2,3].includes(S.lblSize)) S.lblSize = 1;
-  if (S.active >= S.padCount){ S.free = S.pads[S.active]; S.active = -1; }
-  const padLabel = i => (S.names[i] || '').trim() || term(S.pads[i]);
-
-  let bpm = S.active < 0 ? S.free : S.pads[S.active];
-  let pending = null;
-  let playing = false;
-  let editing = false;
+  if (S.scrollMode !== 'row') S.scrollMode = 'page';
+  if (S.active >= TOTAL) S.active = -1;
 
   const term = b => b<60?'Largo':b<66?'Larghetto':b<76?'Adagio':b<108?'Andante':b<120?'Moderato':b<156?'Allegro':b<176?'Vivace':b<200?'Presto':'Prestissimo';
   const clamp = v => Math.max(20, Math.min(300, Math.round(v || 0)));
+  const padLabel = i => (S.names[i] || '').trim() || term(S.pads[i]);
+  const meterBeats = m => +m.split('/')[0];
+  const accentOf = (m, b) => b === 0 ? 2 : ((GROUPS[m] || []).includes(b) ? 1 : 0);   // 2 strong, 1 medium, 0 plain
+
+  let bpm = S.active < 0 ? S.free : S.pads[S.active];
+  let curMeter = S.active < 0 ? S.freeMeter : S.meters[S.active];
+  let pending = null, pendingFreeMeter = null;
+  let playing = false;
+  let editing = false;
 
   // ---------- audio ----------
   let ctx = null, master = null, noiseBuf = null;
@@ -313,22 +366,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
     o.connect(env(t, peak, decay)); o.start(t); o.stop(t + decay + 0.02);
   }
-  function playSound(t, strong){
-    const hi = strong && S.accent;
+  function playSound(t, level){
+    const lv = S.accent ? level : 0;
     if (S.sound === 'click'){
       const n = ctx.createBufferSource(); n.buffer = noiseBuf;
-      const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value = hi ? 3000 : 1800;
-      n.connect(f); f.connect(env(t, hi ? 1 : 0.7, 0.03)); n.start(t); n.stop(t + 0.05);
-      tone(t, hi ? 2600 : 1900, 'square', 0.15, 0.02);
+      const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value = [1800,2400,3000][lv];
+      n.connect(f); f.connect(env(t, [0.7,0.85,1][lv], 0.03)); n.start(t); n.stop(t + 0.05);
+      tone(t, [1900,2250,2600][lv], 'square', 0.15, 0.02);
     } else if (S.sound === 'wood'){
       const o = ctx.createOscillator(); o.type='sine';
-      const f0 = hi ? 1250 : 880;
+      const f0 = [880,1050,1250][lv];
       o.frequency.setValueAtTime(f0*1.6, t); o.frequency.exponentialRampToValueAtTime(f0, t+0.012);
       const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f0; bp.Q.value=4;
       o.connect(bp); bp.connect(env(t, 1, 0.07)); o.start(t); o.stop(t+0.1);
       tone(t, f0*2.7, 'triangle', 0.12, 0.025);
     } else {
-      tone(t, hi ? 1500 : 1000, 'sine', 0.8, 0.06);
+      tone(t, [1000,1250,1500][lv], 'sine', 0.8, 0.06);
     }
   }
 
@@ -337,37 +390,41 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   let schedBar = 0, shownBar = 0, pendingBar = 0;   // bar numbers: scheduled / audible / when the queued tempo starts
   const visualQ = [];
   const LOOKAHEAD = 0.12;
+  function applyAtBarLine(){
+    if (pending !== null && schedBar >= pendingBar){ S.active = pending; bpm = S.pads[pending]; curMeter = S.meters[pending]; pending = null; save(); }
+    if (pendingFreeMeter){ curMeter = pendingFreeMeter; pendingFreeMeter = null; }
+  }
   function tick(){
     if (ctx.state !== 'running') return;
     if (nextTime < ctx.currentTime - 0.2){ visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.05; }
     while (nextTime < ctx.currentTime + LOOKAHEAD){
-      if (beat === 0 && pending !== null && schedBar >= pendingBar){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
-      playSound(nextTime, beat === 0);
-      visualQ.push({ t: nextTime, beat, bar: schedBar, bpm, active: S.active });
+      if (beat === 0) applyAtBarLine();
+      playSound(nextTime, accentOf(curMeter, beat));
+      visualQ.push({ t: nextTime, beat, bar: schedBar, bpm, active: S.active, meter: curMeter });
       nextTime += 60 / bpm;
-      beat = (beat + 1) % S.beats;
+      beat = (beat + 1) % meterBeats(curMeter);
       if (beat === 0) schedBar++;
     }
   }
-  function start(){
+  function start(firstIn){
     ensureAudio();
-    playing = true; beat = 0; schedBar = 0; shownBar = 0; nextTime = ctx.currentTime + 0.06;
+    playing = true; beat = 0; schedBar = 0; shownBar = 0; nextTime = ctx.currentTime + (firstIn || 0.06);
     timer = setInterval(tick, 25); tick();
     requestWake(); render();
   }
   function stop(){
     playing = false; clearInterval(timer); timer = null; visualQ.length = 0;
-    if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
+    schedBar = pendingBar; applyAtBarLine();
     shownBeat = -1; releaseWake(); render();
   }
 
   // ---------- visuals on the audio clock ----------
-  let shownBeat = -1, shownActive = S.active, shownBpm = bpm;
+  let shownBeat = -1, shownActive = S.active, shownBpm = bpm, shownMeter = curMeter;
   function frame(){
     if (playing && ctx){
       let changed = false;
       while (visualQ.length && visualQ[0].t <= ctx.currentTime){
-        const v = visualQ.shift(); shownBeat = v.beat; shownBar = v.bar; shownActive = v.active; shownBpm = v.bpm; changed = true;
+        const v = visualQ.shift(); shownBeat = v.beat; shownBar = v.bar; shownActive = v.active; shownBpm = v.bpm; shownMeter = v.meter; changed = true;
       }
       if (changed) renderLive();
     }
@@ -383,7 +440,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     requestWake();
     const restart = () => {
       visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.08;
-      if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; save(); }
+      schedBar = Math.max(schedBar, pendingBar); applyAtBarLine();
     };
     if (ctx.state !== 'running') ctx.resume().then(restart).catch(() => {});
     else if (nextTime < ctx.currentTime - 0.05) restart();
@@ -394,30 +451,37 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   document.addEventListener('pointerdown', () => { if (playing && ctx && ctx.state !== 'running') recover(); }, true);
 
   // ---------- pads ----------
-  const padsEl = $('pads'), beatsEl = $('beats');
+  const padsEl = $('pads'), beatsEl = $('beats'), view = $('padsView');
   const escapeHtml = t => t.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const totalPads = () => S.padCount * 2;
+  let suppressClick = false;
   function buildPads(){
     padsEl.innerHTML = '';
-    S.pads.slice(0, S.padCount).forEach((b, i) => {
+    for (let i = 0; i < totalPads(); i++){
+      const b = S.pads[i], m = S.meters[i];
       const el = document.createElement('button');
       el.className = 'pad'; el.id = 'pad'+i;
-      el.setAttribute('aria-label', `קצב ${b}`);
-      el.innerHTML = `<span class="k">${i+1}</span><span class="n">${b}</span><span class="t" dir="auto">${escapeHtml(padLabel(i))}</span>`;
+      el.setAttribute('aria-label', `קצב ${b}, ${m}`);
+      el.innerHTML = `<span class="k">${i+1}</span><span class="m${m !== '4/4' ? ' odd' : ''}">${m}</span><span class="n">${b}</span><span class="t" dir="auto">${escapeHtml(padLabel(i))}</span>`;
       let pressT = null, longFired = false;
-      el.addEventListener('pointerdown', () => { longFired = false; pressT = setTimeout(() => { longFired = true; openPadEditor(i); }, 600); });
+      el.addEventListener('pointerdown', () => { longFired = false; pressT = setTimeout(() => { if (!dragging) { longFired = true; openPadEditor(i); } }, 600); });
       ['pointerup','pointerleave','pointercancel'].forEach(ev => el.addEventListener(ev, () => clearTimeout(pressT)));
-      el.addEventListener('click', () => { if (longFired) return; editing ? openPadEditor(i) : selectPad(i); });
+      el.cancelPress = () => clearTimeout(pressT);
+      el.addEventListener('click', () => { if (longFired || suppressClick) return; editing ? openPadEditor(i) : selectPad(i); });
       el.addEventListener('contextmenu', e => e.preventDefault());
       padsEl.appendChild(el);
-    });
+    }
   }
-  function buildBeats(){
-    beatsEl.innerHTML = '';
-    for (let i=0;i<S.beats;i++){ const d=document.createElement('span'); d.className='dot'+(i===0?' first':''); beatsEl.appendChild(d); }
+  function buildBeats(m){
+    beatsEl.innerHTML = ''; beatsEl.dataset.meter = m;
+    for (let i = 0; i < meterBeats(m); i++){
+      const d = document.createElement('span'); const a = accentOf(m, i);
+      d.className = 'dot' + (a === 2 ? ' first' : a === 1 ? ' mid' : ''); beatsEl.appendChild(d);
+    }
   }
   function selectPad(i){
     if (!playing){
-      S.active = i; bpm = S.pads[i]; pending = null; save();
+      S.active = i; bpm = S.pads[i]; curMeter = S.meters[i]; pending = null; pendingFreeMeter = null; save();
       if (S.padStarts) start(); else render();
       return;
     }
@@ -431,21 +495,91 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       if (pending === i){ pending = null; render(); return; }
       const heardBeat = Math.max(0, shownBeat) + 1;                // 1-based beat you are hearing now
       const late = S.lateBeat > 0 && heardBeat >= S.lateBeat;
-      pending = i; pendingBar = shownBar + (late ? 2 : 1);
+      pending = i; pendingBar = shownBar + (late ? 2 : 1); pendingFreeMeter = null;
     } else {
-      pending = null; S.active = i; bpm = S.pads[i]; save();
+      pending = null; pendingFreeMeter = null; S.active = i; bpm = S.pads[i]; curMeter = S.meters[i]; beat %= meterBeats(curMeter); save();
     }
     render();
   }
 
+  // ---------- pad window: rows that lock in place, row by row or a full screen at a time ----------
+  let rowStep = 0, perRow = 3, rowsOnScreen = 2, topRow = 0;
+  function layoutPads(){
+    const cs = getComputedStyle($('app'));
+    perRow = +cs.getPropertyValue('--cols') || 3;
+    rowsOnScreen = +cs.getPropertyValue('--rows') || 2;
+    const gap = parseFloat(getComputedStyle(padsEl).rowGap) || 10;
+    const H = view.clientHeight;
+    const rowH = Math.max(40, (H - (rowsOnScreen - 1) * gap) / rowsOnScreen);
+    padsEl.style.setProperty('--rowH', rowH + 'px');
+    rowStep = rowH + gap;
+    view.scrollTop = topRow * rowStep;
+    updatePager();
+  }
+  const maxRow = () => Math.max(0, Math.ceil(totalPads() / perRow) - rowsOnScreen);
+  function updatePager(){
+    const total = view.scrollHeight, H = view.clientHeight;
+    if (!total || total <= H + 1){ $('pager').hidden = true; return; }
+    $('pager').hidden = false;
+    const track = $('pager').clientHeight;
+    $('pagerThumb').style.height = (H / total * track) + 'px';
+    $('pagerThumb').style.top = (view.scrollTop / total * track) + 'px';
+  }
+  let scrollIdle = null;
+  view.addEventListener('scroll', () => {
+    updatePager();
+    clearTimeout(scrollIdle);
+    scrollIdle = setTimeout(() => { if (rowStep && S.scrollMode === 'row') topRow = Math.min(maxRow(), Math.round(view.scrollTop / rowStep)); }, 120);
+  }, { passive: true });
+  function goRow(r){
+    topRow = Math.max(0, Math.min(maxRow(), r));
+    view.scrollTo({ top: topRow * rowStep, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+  // full-screen mode: a short slip of the finger never scrolls; only a long, deliberate drag turns the page
+  let dragging = false, drag = null;
+  view.addEventListener('pointerdown', e => {
+    dragging = false;
+    if (S.scrollMode !== 'page' || editing) return;
+    drag = { y: e.clientY, top: topRow * rowStep, row: topRow, id: e.pointerId, moved: false };
+  });
+  view.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.abs(dy) > 24){
+      drag.moved = true; dragging = true;
+      try { view.setPointerCapture(e.pointerId); } catch(_){}
+      padsEl.querySelectorAll('.pad').forEach(p => p.cancelPress && p.cancelPress());
+    }
+    if (drag.moved) view.scrollTo({ top: drag.top - dy * 0.5, behavior: 'auto' });    // follows the finger at half speed, so it feels heavier
+  });
+  const endDrag = e => {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    const dy = e ? e.clientY - drag.y : 0;
+    if (drag.moved){
+      suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+      const need = view.clientHeight * 0.3;
+      const pageRows = rowsOnScreen;
+      if (dy < -need) goRow(drag.row + pageRows);
+      else if (dy > need) goRow(drag.row - pageRows);
+      else goRow(drag.row);
+    }
+    drag = null; dragging = false;
+  };
+  view.addEventListener('pointerup', endDrag);
+  view.addEventListener('pointercancel', endDrag);
+  if ('ResizeObserver' in window) new ResizeObserver(() => layoutPads()).observe(view);
+  window.addEventListener('resize', layoutPads);
+
   // ---------- free tempo ----------
-  function nudge(d){
-    const v = clamp(bpm + d);
-    pending = null; S.active = -1; S.free = v; bpm = v;
+  function setTempoFree(v){
+    S.free = v; bpm = v;
+    if (S.active >= 0) S.freeMeter = curMeter;     // free tempo keeps the meter that was playing
+    pending = null; S.active = -1;
     shownBpm = v; shownActive = -1;
     visualQ.forEach(q => { q.bpm = v; q.active = -1; });
-    save(); render();
+    save();
   }
+  function nudge(d){ setTempoFree(clamp(bpm + d)); render(); }
   function holdRepeat(el, d){
     let t1 = null, t2 = null;
     const end = () => { clearTimeout(t1); clearInterval(t2); };
@@ -459,35 +593,96 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   }
   holdRepeat($('freePlus'), 1);
   holdRepeat($('freeMinus'), -1);
+  function setFreeMeter(m){
+    if (S.active >= 0){ S.free = bpm; S.active = -1; shownActive = -1; visualQ.forEach(q => { q.active = -1; }); }
+    pending = null; S.freeMeter = m;
+    if (playing) pendingFreeMeter = m; else curMeter = m;
+    save(); render();
+  }
+
+  // ---------- tap tempo (top bar) ----------
+  // The tempo is set on the 4th tap. A pause much longer than the beat you were tapping
+  // (or over 1.5 s before there is a beat to compare with) starts a new count instead of dragging the tempo down.
+  const TAP_COUNT = 4;
+  let tapTimes = [], tapReset = null, tapFlash = null;
+  function tapGapLimit(){
+    if (tapTimes.length < 2) return 1500;
+    const avg = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+    return Math.min(1500, avg * 1.5);
+  }
+  $('tapTop').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > tapGapLimit()) tapTimes = [];
+    tapTimes.push(now); if (tapTimes.length > 6) tapTimes.shift();
+    if (tapTimes.length >= TAP_COUNT){
+      const interval = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+      const v = clamp(60000 / interval);
+      setTempoFree(v);
+      $('tapVal').textContent = v; $('tapVal').hidden = false;
+      if (!playing) start(60 / v);   // first click lands where your next tap would: beat 1 after a 4-tap count-in
+    }
+    const box = $('tapTop'); box.classList.add('hit');
+    clearTimeout(tapFlash); tapFlash = setTimeout(() => box.classList.remove('hit'), 90);
+    clearTimeout(tapReset); tapReset = setTimeout(() => { tapTimes = []; $('tapVal').hidden = true; renderLive(); }, 2000);
+    render();
+  });
+  $('tapTop').addEventListener('click', e => { if (e.detail === 0) $('tapTop').dispatchEvent(new PointerEvent('pointerdown')); });
+  $('tapTop').addEventListener('contextmenu', e => e.preventDefault());
+
+  // ---------- meter pickers ----------
+  function buildMeterGrid(el, onPick){
+    el.innerHTML = '';
+    METERS.forEach(m => { const b = document.createElement('button'); b.textContent = m; b.dataset.m = m; b.onclick = () => onPick(m); el.appendChild(b); });
+  }
+  const markMeter = (el, m) => el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
+  let fmMeter = '4/4';
+  buildMeterGrid($('meterFree'), m => { fmMeter = m; markMeter($('meterFree'), m); });
+  function applyFreeSheet(){
+    const v = clamp($('freeIn').value);
+    const meterNow = pendingFreeMeter || curMeter;
+    if (v !== bpm) setTempoFree(v);
+    if (fmMeter !== meterNow) setFreeMeter(fmMeter); else render();
+    $('fmBg').hidden = true;
+  }
+  $('fmOk').onclick = applyFreeSheet;
+  $('freeIn').addEventListener('keydown', e => { if (e.key === 'Enter') applyFreeSheet(); });
+  document.querySelectorAll('[data-fd]').forEach(b => b.onclick = () => { $('freeIn').value = clamp(+$('freeIn').value + +b.dataset.fd); });
+  let editMeter = '4/4';
+  buildMeterGrid($('meterPad'), m => { editMeter = m; markMeter($('meterPad'), m); });
+  $('freeMid').onclick = () => {
+    fmMeter = pendingFreeMeter || curMeter; markMeter($('meterFree'), fmMeter);
+    $('freeIn').value = bpm; $('fmBg').hidden = false;
+  };
+  $('fmBg').addEventListener('click', e => { if (e.target === $('fmBg')) $('fmBg').hidden = true; });
 
   // ---------- render ----------
-  const soundName = { click:'קליק', wood:'עץ', beep:'ביפ' };
   function renderLive(){
+    const m = playing ? shownMeter : curMeter;
+    if (beatsEl.dataset.meter !== m) buildBeats(m);
     [...beatsEl.children].forEach((d,i) => d.classList.toggle('on', i === shownBeat));
-    $('nowBpm').textContent = shownBpm; $('nowTerm').textContent = term(shownBpm);
-    S.pads.slice(0, S.padCount).forEach((_, i) => {
-      const p = $('pad'+i); if (!p) return;
+    for (let i = 0; i < totalPads(); i++){
+      const p = $('pad'+i); if (!p) continue;
       p.classList.toggle('active', i === shownActive);
       p.classList.toggle('pending', i === pending);
-    });
+    }
     const freeOn = shownActive < 0;
     $('free').classList.toggle('active', freeOn);
     $('freeVal').textContent = shownBpm;
     $('freeLbl').textContent = freeOn ? 'קצב חופשי' : 'מתנגן עכשיו';
-    const st = $('status');
-    st.className = 'status';
-    if (editing){ st.textContent = 'מצב עריכה: לחץ על ריבוע כדי לשנות את הקצב שלו'; st.classList.add('edit'); }
-    else if (pending !== null){ const n = Math.max(1, pendingBar - shownBar); st.textContent = `הבא: ${S.pads[pending]} ${n > 1 ? 'בסוף התיבה הבאה' : 'בסוף התיבה'}`; st.classList.add('next'); }
-    else st.textContent = `${S.beats}/4 · ${S.quantize ? 'החלפה בסוף תיבה' : 'החלפה מיידית'} · ${soundName[S.sound]}`;
+    $('freeMeter').textContent = pendingFreeMeter ? `${m} → ${pendingFreeMeter}` : m;
+    $('tapTop').hidden = editing; $('editNote').hidden = !editing;
+    const ts = $('tapSub');
+    if (pending !== null){ const n = Math.max(1, pendingBar - shownBar); ts.textContent = `הבא: ${S.pads[pending]} ${n > 1 ? 'בסוף התיבה הבאה' : 'בסוף התיבה'}`; ts.className = 'ts next'; }
+    else if (tapTimes.length){ ts.textContent = tapTimes.length < TAP_COUNT ? `עוד ${TAP_COUNT - tapTimes.length}…` : 'קצב חופשי'; ts.className = 'ts'; }
+    else { ts.textContent = 'הקש בקצב'; ts.className = 'ts'; }
   }
   function render(){
-    if (!playing){ shownBpm = bpm; shownActive = S.active; }
+    if (!playing){ shownBpm = bpm; shownActive = S.active; shownMeter = curMeter; }
     $('play').innerHTML = playing ? ICON_STOP : ICON_PLAY;
     $('play').setAttribute('aria-label', playing ? 'עצור' : 'הפעל');
     $('qBar').setAttribute('aria-pressed', S.quantize); $('qNow').setAttribute('aria-pressed', !S.quantize);
-    $('sig').textContent = S.beats + '/4';
     document.querySelectorAll('[data-sound]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sound === S.sound));
-    if (S.lateBeat > S.beats) S.lateBeat = S.beats > 1 ? S.beats : 0;
     $('lateRow').hidden = !S.quantize;
     $('lateVal').textContent = S.lateBeat ? `מפעמה ${S.lateBeat}` : 'כבוי';
     $('lateHint').textContent = S.lateBeat
@@ -500,6 +695,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     $('app').classList.toggle('eight', S.padCount === 8);
     $('app').classList.toggle('lbl2', S.lblSize === 2); $('app').classList.toggle('lbl3', S.lblSize === 3);
     $('count6').setAttribute('aria-pressed', S.padCount === 6); $('count8').setAttribute('aria-pressed', S.padCount === 8);
+    $('countHint').textContent = `סך הכול ${totalPads()} ריבועים, ${S.padCount} בכל מסך.`;
+    $('scrollRow').setAttribute('aria-pressed', S.scrollMode === 'row'); $('scrollPage').setAttribute('aria-pressed', S.scrollMode === 'page');
+    $('scrollHint').textContent = S.scrollMode === 'page'
+      ? 'גרירה ארוכה מעבירה מסך שלם. תזוזה קטנה של האצבע לא גוללת.'
+      : 'גלילה חופשית שננעלת על שורה שלמה, בלי חצאי ריבועים.';
+    view.classList.toggle('paged', S.scrollMode === 'page');
     document.querySelectorAll('[data-lbl]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.lbl === S.lblSize));
     $('accOn').setAttribute('aria-pressed', S.accent); $('accOff').setAttribute('aria-pressed', !S.accent);
     $('app').classList.toggle('editing', editing);
@@ -515,43 +716,44 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   $('qBar').onclick = () => { S.quantize = true; save(); render(); };
   $('qNow').onclick = () => {
     S.quantize = false;
-    if (pending !== null){ S.active = pending; bpm = S.pads[pending]; pending = null; }
+    if (pending !== null){ S.active = pending; bpm = S.pads[pending]; curMeter = S.meters[pending]; beat %= meterBeats(curMeter); pending = null; }
     save(); render();
   };
-  const setBeats = n => { S.beats = Math.max(1, Math.min(12, n)); beat %= S.beats; save(); buildBeats(); render(); };
-  $('sigMinus').onclick = () => setBeats(S.beats - 1);
-  $('sigPlus').onclick = () => setBeats(S.beats + 1);
   document.querySelectorAll('[data-sound]').forEach(b => b.onclick = () => {
     S.sound = b.dataset.sound; save(); render();
-    ensureAudio(); if (!playing) playSound(ctx.currentTime + 0.02, true);
+    ensureAudio(); if (!playing) playSound(ctx.currentTime + 0.02, 2);
   });
   $('accOn').onclick = () => { S.accent = true; save(); render(); };
   $('accOff').onclick = () => { S.accent = false; save(); render(); };
-  // late-press cutoff: off, or beat 2..N of the bar
-  const setLate = v => { S.lateBeat = v < 2 ? 0 : Math.min(v, S.beats); if (S.beats < 2) S.lateBeat = 0; save(); render(); };
+  // late-press cutoff: off, or beat 2..7 of the bar
+  const setLate = v => { S.lateBeat = v < 2 ? 0 : Math.min(v, 7); save(); render(); };
   $('latePlus').onclick = () => setLate(S.lateBeat ? S.lateBeat + 1 : 2);
   $('lateMinus').onclick = () => setLate(S.lateBeat ? (S.lateBeat === 2 ? 0 : S.lateBeat - 1) : 0);
   $('startPlay').onclick = () => { S.padStarts = false; save(); render(); };
   $('startPad').onclick = () => { S.padStarts = true; save(); render(); };
   function setCount(n){
     S.padCount = n;
-    if (pending !== null && pending >= n) pending = null;
-    if (S.active >= n){ S.free = bpm; S.active = -1; shownActive = -1; visualQ.forEach(q => { q.active = -1; }); }   // keep playing the same tempo
-    save(); buildPads(); render();
+    if (pending !== null && pending >= totalPads()) pending = null;
+    if (S.active >= totalPads()){ S.free = bpm; S.freeMeter = curMeter; S.active = -1; shownActive = -1; visualQ.forEach(q => { q.active = -1; }); }   // keep playing the same tempo
+    topRow = 0; save(); buildPads(); render(); layoutPads();
   }
   $('count6').onclick = () => setCount(6);
   $('count8').onclick = () => setCount(8);
+  $('scrollRow').onclick = () => { S.scrollMode = 'row'; save(); render(); };
+  $('scrollPage').onclick = () => { S.scrollMode = 'page'; save(); render(); goRow(Math.round(topRow / rowsOnScreen) * rowsOnScreen); };
   document.querySelectorAll('[data-lbl]').forEach(b => b.onclick = () => { S.lblSize = +b.dataset.lbl; save(); render(); });
   $('vol').value = S.vol;
   $('vol').oninput = e => { S.vol = +e.target.value; if (master) master.gain.value = S.vol; save(); };
   $('editBtn').onclick = () => { editing = true; $('setBg').hidden = true; render(); };
   $('doneEdit').onclick = () => { editing = false; render(); };
   document.addEventListener('keydown', e => {
-    if (!$('sheetBg').hidden || !$('setBg').hidden) { if (e.key === 'Escape'){ $('setBg').hidden = true; } return; }
+    if (!$('sheetBg').hidden || !$('setBg').hidden || !$('fmBg').hidden) { if (e.key === 'Escape'){ $('setBg').hidden = true; $('fmBg').hidden = true; } return; }
     if (e.code === 'Space'){ e.preventDefault(); playing ? stop() : start(); }
     if (e.key === 'ArrowUp' || e.key === '+'){ e.preventDefault(); nudge(1); }
     if (e.key === 'ArrowDown' || e.key === '-'){ e.preventDefault(); nudge(-1); }
-    const n = parseInt(e.key, 10); if (n >= 1 && n <= S.padCount) selectPad(n-1);
+    if (e.key === 'PageDown'){ e.preventDefault(); goRow(topRow + rowsOnScreen); }
+    if (e.key === 'PageUp'){ e.preventDefault(); goRow(topRow - rowsOnScreen); }
+    const n = parseInt(e.key, 10); if (n >= 1 && n <= 9) selectPad(n-1);
   });
 
   // ---------- pad editor ----------
@@ -562,13 +764,18 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     $('bpmIn').value = S.pads[i];
     $('nameIn').value = S.names[i] || '';
     $('nameIn').placeholder = `ריק = ${term(S.pads[i])}`;
+    editMeter = S.meters[i]; markMeter($('meterPad'), editMeter);
     $('sheetBg').hidden = false;
   }
   function closePadEditor(){
     const v = clamp($('bpmIn').value);
     S.names[editIdx] = $('nameIn').value.trim().slice(0, 24);
     S.pads[editIdx] = v;
-    if (editIdx === S.active) bpm = v;
+    S.meters[editIdx] = editMeter;
+    if (editIdx === S.active){
+      bpm = v;
+      if (curMeter !== editMeter){ if (playing) pendingFreeMeter = editMeter; else curMeter = editMeter; }
+    }
     save(); $('sheetBg').hidden = true; buildPads(); render();
   }
   document.querySelectorAll('.steps4 button').forEach(b => b.onclick = () => {
@@ -585,7 +792,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   $('bpmIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
   $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
 
-  buildPads(); buildBeats(); render(); requestAnimationFrame(frame);
+  buildPads(); render(); layoutPads(); requestAnimationFrame(frame);
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
 })();
 </script>
