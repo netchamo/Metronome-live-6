@@ -152,6 +152,9 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 .meters button[aria-pressed="true"]{background:var(--brass);color:var(--brass-ink)}
 .setcol{display:grid;gap:8px}
 .setcol .lbl{color:var(--muted);font-size:15px;font-weight:600}
+.midibox{border-top:1px solid var(--line);padding-top:12px}
+.seg.wrap{flex-wrap:wrap}
+.seg.wrap:empty{display:none}
 
 /* phone portrait: 2 x 3 */
 @media (max-width:640px) and (orientation:portrait){
@@ -262,6 +265,21 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       <span class="lbl">עוצמה</span>
       <input type="range" dir="ltr" class="vol" id="vol" min="0" max="1" step="0.01" aria-label="עוצמה">
     </div>
+    <div class="setcol midibox" id="midiBox">
+      <span class="lbl">MIDI: שליטה בטמפו של מכשיר חיצוני</span>
+      <p class="hint latehint" id="midiNote"></p>
+      <button class="wide" id="midiConnect">חיבור ל־MIDI</button>
+      <div class="seg wrap" id="midiOuts"></div>
+      <div class="setrow" id="midiClockRow">
+        <span class="lbl">שליחת Clock</span>
+        <div class="seg"><button class="chip" data-clk="off">כבוי</button><button class="chip" data-clk="playing">כשהקליק מנגן</button><button class="chip" data-clk="always">תמיד</button></div>
+      </div>
+      <div class="setrow" id="midiSSRow">
+        <span class="lbl">שליחת Start/Stop</span>
+        <div class="seg"><button class="chip" id="ssOff">לא</button><button class="chip" id="ssOn">כן</button></div>
+        <p class="hint latehint">Start/Stop מפעיל ועוצר במכשיר את מה שמוגדר אצלו לזה, בדרך כלל המקצב או הנגינה. לא את הקליק שלו.</p>
+      </div>
+    </div>
     <button class="wide" id="editBtn">✎ עריכת הריבועים (קצב, משקל, טקסט)</button>
     <button class="primary" id="setClose">סגור</button>
   </div>
@@ -314,7 +332,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
   // ---------- state ----------
   const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8,
-              lateBeat:0, padStarts:true, names:[], padCount:6, lblSize:1, meters:null, freeMeter:null, scrollMode:'page' };
+              lateBeat:0, padStarts:true, names:[], padCount:6, lblSize:1, meters:null, freeMeter:null, scrollMode:'page',
+              midiWanted:false, midiOutName:'', midiClock:'off', midiSS:false };
   try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch(e){}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
   if (S.padsVersion !== 2){ S.pads = DEFAULT_PADS.slice(); S.padsVersion = 2; S.active = Math.min(S.active, 5); save(); }
@@ -332,6 +351,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   if (![1,2,3].includes(S.lblSize)) S.lblSize = 1;
   if (S.scrollMode !== 'row') S.scrollMode = 'page';
   if (S.active >= TOTAL) S.active = -1;
+  if (!['off','playing','always'].includes(S.midiClock)) S.midiClock = 'off';
 
   const term = b => b<60?'Largo':b<66?'Larghetto':b<76?'Adagio':b<108?'Andante':b<120?'Moderato':b<156?'Allegro':b<176?'Vivace':b<200?'Presto':'Prestissimo';
   const clamp = v => Math.max(20, Math.min(300, Math.round(v || 0)));
@@ -389,8 +409,58 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     }
   }
 
+  // ---------- MIDI out (Chrome on Android / desktop; not available on iPad) ----------
+  // MIDI Clock = 24 pulses per quarter note. The receiving instrument measures the pulses and follows the tempo.
+  const MIDI_OK = typeof navigator.requestMIDIAccess === 'function';
+  let midi = null, midiOut = null, midiState = 'idle';   // idle | asking | ready | denied
+  const quarterBpm = (m, tempo) => m === '6/8' ? tempo / 2 : tempo;            // 6/8 counts eighths
+  const ticksPerClick = m => m.endsWith('/8') ? 12 : 24;
+  function midiSend(bytes, perfT){ if (!midiOut) return; try { midiOut.send(bytes, perfT); } catch(e){} }
+  // audio clock -> MIDI timestamp. The offset is smoothed so pulses never jump; output latency is added so MIDI lands with the sound.
+  let clockOffset = null;
+  function syncOffset(){
+    const lat = ((ctx.outputLatency || 0) || (ctx.baseLatency || 0)) * 1000;
+    const raw = performance.now() - ctx.currentTime * 1000 + lat;
+    clockOffset = clockOffset === null ? raw : clockOffset + (raw - clockOffset) * 0.02;
+  }
+  const audioToPerf = t => t * 1000 + clockOffset;
+  const perfToAudio = p => (p - clockOffset) / 1000;
+  function pickMidiOut(){
+    midiOut = null; if (!midi) return;
+    const outs = [...midi.outputs.values()];
+    midiOut = outs.find(o => o.name === S.midiOutName) || null;
+  }
+  async function connectMidi(){
+    if (!MIDI_OK) return;
+    midiState = 'asking'; renderMidi();
+    try { midi = await navigator.requestMIDIAccess(); }
+    catch(e){ midiState = 'denied'; S.midiWanted = false; save(); renderMidi(); return; }
+    midiState = 'ready'; S.midiWanted = true; save();
+    midi.onstatechange = () => { pickMidiOut(); renderMidi(); idleClock(); };
+    pickMidiOut(); renderMidi(); idleClock();
+  }
+  const clockWhilePlaying = () => midiOut && S.midiClock !== 'off';
+  const clockWhileStopped = () => midiOut && S.midiClock === 'always';
+
+  // clock while stopped ("always"): keeps the instrument at the current tempo
+  let idleTimer = null, idleT = 0;
+  function idleClock(){
+    const want = clockWhileStopped() && !playing;
+    if (!want){ clearInterval(idleTimer); idleTimer = null; return; }
+    if (idleTimer) return;
+    idleT = Math.max(idleT, performance.now());
+    idleTimer = setInterval(() => {
+      if (!clockWhileStopped() || playing){ clearInterval(idleTimer); idleTimer = null; return; }
+      const now = performance.now();
+      if (idleT < now - 100) idleT = now;
+      const step = 60000 / (quarterBpm(curMeter, bpm) * 24);
+      while (idleT < now + 60){ midiSend([0xF8], idleT); idleT += step; }
+    }, 20);
+  }
+
   // ---------- scheduler ----------
   let nextTime = 0, beat = 0, timer = null;
+  let clockT = 0, clockStep = 0;                     // next MIDI clock pulse (audio time) and spacing
   let schedBar = 0, shownBar = 0, pendingBar = 0;   // bar numbers: scheduled / audible / when the queued tempo starts
   const visualQ = [];
   const LOOKAHEAD = 0.12;
@@ -400,26 +470,47 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   }
   function tick(){
     if (ctx.state !== 'running') return;
-    if (nextTime < ctx.currentTime - 0.2){ visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.05; }
-    while (nextTime < ctx.currentTime + LOOKAHEAD){
+    syncOffset();
+    if (nextTime < ctx.currentTime - 0.2){ visualQ.length = 0; beat = 0; schedBar++; nextTime = ctx.currentTime + 0.05; clockT = nextTime; }
+    const clockOn = clockWhilePlaying();
+    for (;;){
+      const horizon = ctx.currentTime + LOOKAHEAD;
+      if (clockOn && clockStep > 0){
+        const until = Math.min(nextTime, horizon) - 1e-6;
+        while (clockT < until){ midiSend([0xF8], audioToPerf(clockT)); clockT += clockStep; }
+      }
+      if (nextTime >= horizon) break;
       if (beat === 0) applyAtBarLine();
       playSound(nextTime, accentOf(curMeter, beat));
       visualQ.push({ t: nextTime, beat, bar: schedBar, bpm, active: S.active, meter: curMeter });
-      nextTime += clickGap(curMeter, bpm);
+      const gap = clickGap(curMeter, bpm);
+      clockT = nextTime; clockStep = gap / ticksPerClick(curMeter);   // pulses lock to every click
+      nextTime += gap;
       beat = (beat + 1) % meterBeats(curMeter);
       if (beat === 0) schedBar++;
     }
   }
   function start(firstIn){
     ensureAudio();
-    playing = true; beat = 0; schedBar = 0; shownBar = 0; nextTime = ctx.currentTime + (firstIn || 0.06);
+    playing = true; beat = 0; schedBar = 0; shownBar = 0;
+    syncOffset();
+    let first = ctx.currentTime + (firstIn || 0.06);
+    if (idleTimer){                                  // hand over from the stopped-state clock without a gap or a double pulse
+      clearInterval(idleTimer); idleTimer = null;
+      const handover = perfToAudio(idleT);           // the idle pulse that was next, but not sent yet
+      first = firstIn ? Math.max(first, handover) : Math.max(ctx.currentTime + 0.025, handover);
+    }
+    nextTime = first; clockT = first; clockStep = 0;
+    if (midiOut && S.midiSS) midiSend([0xFA], audioToPerf(first) - 1);
     timer = setInterval(tick, 25); tick();
     requestWake(); render();
   }
   function stop(){
     playing = false; clearInterval(timer); timer = null; visualQ.length = 0;
+    if (midiOut && S.midiSS) midiSend([0xFC]);
+    if (ctx && clockStep > 0 && clockOffset !== null) idleT = Math.max(performance.now(), audioToPerf(clockT));
     schedBar = pendingBar; applyAtBarLine();
-    shownBeat = -1; releaseWake(); render();
+    shownBeat = -1; releaseWake(); render(); idleClock();
   }
 
   // ---------- visuals on the audio clock ----------
@@ -712,6 +803,39 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     renderLive();
   }
 
+  function renderMidi(){
+    $('midiConnect').hidden = !MIDI_OK || midiState === 'ready';
+    $('midiConnect').textContent = midiState === 'asking' ? 'מתחבר…' : 'חיבור ל־MIDI';
+    const outsEl = $('midiOuts'); outsEl.innerHTML = '';
+    const outs = midi ? [...midi.outputs.values()] : [];
+    if (midiState === 'ready'){
+      const none = document.createElement('button'); none.className = 'chip'; none.textContent = 'ללא';
+      none.setAttribute('aria-pressed', !midiOut); none.onclick = () => { S.midiOutName = ''; save(); pickMidiOut(); renderMidi(); idleClock(); };
+      outsEl.appendChild(none);
+      outs.forEach(o => {
+        const b = document.createElement('button'); b.className = 'chip'; b.textContent = o.name; b.dir = 'auto';
+        b.setAttribute('aria-pressed', midiOut === o);
+        b.onclick = () => { S.midiOutName = o.name; save(); pickMidiOut(); renderMidi(); idleClock(); };
+        outsEl.appendChild(b);
+      });
+    }
+    let note;
+    if (!MIDI_OK) note = 'הדפדפן הזה לא תומך ב־MIDI. זה עובד בכרום באנדרואיד ובמחשב. באייפד ובאייפון זה לא אפשרי.';
+    else if (midiState === 'denied') note = 'הגישה ל־MIDI נחסמה. אפשר לאשר אותה בהגדרות האתר בכרום ולנסות שוב.';
+    else if (midiState !== 'ready') note = 'חבר את המכשיר בכבל USB או בממשק USB ל־MIDI, ולחץ "חיבור ל־MIDI".';
+    else if (!outs.length) note = 'לא נמצאו יציאות MIDI. חבר כבל, והרשימה תתעדכן לבד.';
+    else note = midiOut ? `שולח אל: ${midiOut.name}` : 'בחר יציאה:';
+    $('midiNote').textContent = note;
+    const show = MIDI_OK && midiState === 'ready';
+    $('midiClockRow').hidden = !show; $('midiSSRow').hidden = !show;
+    document.querySelectorAll('[data-clk]').forEach(b => b.setAttribute('aria-pressed', b.dataset.clk === S.midiClock));
+    $('ssOn').setAttribute('aria-pressed', S.midiSS); $('ssOff').setAttribute('aria-pressed', !S.midiSS);
+  }
+  $('midiConnect').onclick = connectMidi;
+  document.querySelectorAll('[data-clk]').forEach(b => b.onclick = () => { S.midiClock = b.dataset.clk; save(); renderMidi(); idleClock(); });
+  $('ssOn').onclick = () => { S.midiSS = true; save(); renderMidi(); };
+  $('ssOff').onclick = () => { S.midiSS = false; save(); renderMidi(); };
+
   // ---------- controls ----------
   $('play').onclick = () => playing ? stop() : start();
   $('gear').onclick = () => { $('setBg').hidden = false; };
@@ -796,7 +920,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   $('bpmIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
   $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') closePadEditor(); });
 
-  buildPads(); render(); layoutPads(); requestAnimationFrame(frame);
+  buildPads(); render(); layoutPads(); renderMidi(); requestAnimationFrame(frame);
+  if (MIDI_OK && S.midiWanted) connectMidi();   // reconnects to the same instrument next time the app opens
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
 })();
 </script>
