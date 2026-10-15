@@ -386,68 +386,43 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   let editing = false;
 
   // ---------- audio ----------
-  // Every click sound is rendered once into a ready-made sample. A sample that is due "now" (or a hair in the past)
-  // still plays in full, so the first click after a press can never be swallowed.
-  let ctx = null, master = null, clickBufs = null;
-  function synth(c, dest, t, sound, lv){
-    const env = (peak, decay) => {
-      const g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(peak, t + 0.002);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-      g.connect(dest); return g;
-    };
-    const tone = (freq, type, peak, decay) => {
-      const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
-      o.connect(env(peak, decay)); o.start(t); o.stop(t + decay + 0.02);
-    };
-    if (sound === 'click'){
-      const nb = c.createBuffer(1, Math.floor(c.sampleRate * 0.05), c.sampleRate);
-      const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      const n = c.createBufferSource(); n.buffer = nb;
-      const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = [1800,2400,3000][lv];
-      n.connect(f); f.connect(env([0.7,0.85,1][lv], 0.03)); n.start(t); n.stop(t + 0.05);
-      tone([1900,2250,2600][lv], 'square', 0.15, 0.02);
-    } else if (sound === 'wood'){
-      const o = c.createOscillator(); o.type = 'sine';
-      const f0 = [880,1050,1250][lv];
-      o.frequency.setValueAtTime(f0 * 1.6, t); o.frequency.exponentialRampToValueAtTime(f0, t + 0.012);
-      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f0; bp.Q.value = 4;
-      o.connect(bp); bp.connect(env(1, 0.07)); o.start(t); o.stop(t + 0.1);
-      tone(f0 * 2.7, 'triangle', 0.12, 0.025);
-    } else {
-      tone([1000,1250,1500][lv], 'sine', 0.8, 0.06);
-    }
-  }
-  async function renderClicks(){
-    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    if (!OAC) return;
-    try {
-      const sr = ctx.sampleRate, bufs = {};
-      for (const snd of ['click','wood','beep']) for (const lv of [0,1,2]){
-        const oc = new OAC(1, Math.ceil(sr * 0.13), sr);
-        synth(oc, oc.destination, 0, snd, lv);
-        bufs[snd + lv] = await oc.startRendering();
-      }
-      clickBufs = bufs;
-    } catch(e){ clickBufs = null; }
-  }
+  let ctx = null, master = null, noiseBuf = null;
   function ensureAudio(){
     if (ctx) { if (ctx.state !== 'running') ctx.resume(); return; }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain(); master.gain.value = S.vol; master.connect(ctx.destination);
+    noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.05), ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
     const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1,1,22050); s.connect(ctx.destination); s.start(0);
-    renderClicks();
+  }
+  function env(t, peak, decay){
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    g.connect(master); return g;
+  }
+  function tone(t, freq, type, peak, decay){
+    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
+    o.connect(env(t, peak, decay)); o.start(t); o.stop(t + decay + 0.02);
   }
   function playSound(t, level){
     const lv = S.accent ? level : 0;
-    const buf = clickBufs && clickBufs[S.sound + lv];
-    if (buf){
-      const src = ctx.createBufferSource(); src.buffer = buf; src.connect(master);
-      src.start(Math.max(0, t));                     // a start time already passed plays immediately, in full
-      return;
+    if (S.sound === 'click'){
+      const n = ctx.createBufferSource(); n.buffer = noiseBuf;
+      const f = ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value = [1800,2400,3000][lv];
+      n.connect(f); f.connect(env(t, [0.7,0.85,1][lv], 0.03)); n.start(t); n.stop(t + 0.05);
+      tone(t, [1900,2250,2600][lv], 'square', 0.15, 0.02);
+    } else if (S.sound === 'wood'){
+      const o = ctx.createOscillator(); o.type='sine';
+      const f0 = [880,1050,1250][lv];
+      o.frequency.setValueAtTime(f0*1.6, t); o.frequency.exponentialRampToValueAtTime(f0, t+0.012);
+      const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f0; bp.Q.value=4;
+      o.connect(bp); bp.connect(env(t, 1, 0.07)); o.start(t); o.stop(t+0.1);
+      tone(t, f0*2.7, 'triangle', 0.12, 0.025);
+    } else {
+      tone(t, [1000,1250,1500][lv], 'sine', 0.8, 0.06);
     }
-    synth(ctx, master, Math.max(t, ctx.currentTime + 0.005), S.sound, lv);
   }
 
   // ---------- MIDI out (Chrome on Android / desktop; not available on iPad) ----------
