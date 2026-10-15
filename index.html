@@ -387,9 +387,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
   // ---------- audio ----------
   // Every click sound is rendered once into a ready-made sample. A sample that is due "now" (or a hair in the past)
-  // still plays in full, so the first click after a press can never be swallowed. A near-silent signal keeps the
-  // phone's audio output awake, so the first click does not wait for the speaker to wake up.
-  let ctx = null, master = null, clickBufs = null, keepAlive = null;
+  // still plays in full, so the first click after a press can never be swallowed.
+  let ctx = null, master = null, clickBufs = null;
   function synth(c, dest, t, sound, lv){
     const env = (peak, decay) => {
       const g = c.createGain();
@@ -433,21 +432,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       clickBufs = bufs;
     } catch(e){ clickBufs = null; }
   }
-  function startKeepAlive(){
-    if (keepAlive || !ctx) return;
-    try {
-      const src = ctx.createConstantSource ? ctx.createConstantSource() : null;
-      if (!src) return;
-      src.offset.value = 0.00002;                     // far below hearing, but not digital silence
-      src.connect(ctx.destination); src.start(); keepAlive = src;
-    } catch(e){}
-  }
   function ensureAudio(){
     if (ctx) { if (ctx.state !== 'running') ctx.resume(); return; }
-    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain(); master.gain.value = S.vol; master.connect(ctx.destination);
     const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1,1,22050); s.connect(ctx.destination); s.start(0);
-    startKeepAlive();
     renderClicks();
   }
   function playSound(t, level){
