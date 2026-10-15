@@ -252,6 +252,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
       <p class="hint latehint" id="startHint"></p>
     </div>
     <div class="setrow">
+      <span class="lbl">השהיית הקליק הראשון</span>
+      <div class="seg" dir="ltr"><button class="chip" data-fd0="0">0</button><button class="chip" data-fd0="15">15</button><button class="chip" data-fd0="30">30</button><button class="chip" data-fd0="45">45</button></div>
+      <p class="hint latehint">באלפיות שנייה. אם הקליק הראשון אחרי לחיצה לפעמים לא נשמע, העלה עד שהוא נשמע תמיד. 0 = הכי מהיר. משפיע רק על רגע ההפעלה.</p>
+    </div>
+    <div class="setrow">
       <span class="lbl">ריבועים במסך</span>
       <div class="seg"><button class="chip" id="count6">6</button><button class="chip" id="count8">8</button></div>
       <p class="hint latehint" id="countHint"></p>
@@ -349,7 +354,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   // ---------- state ----------
   const S = { pads:DEFAULT_PADS.slice(), padsVersion:2, active:1, free:120, beats:4, sound:'wood', accent:true, quantize:true, vol:0.8,
               lateBeat:0, padStarts:true, names:[], padCount:6, lblSize:1, meters:null, freeMeter:null, scrollMode:'page',
-              midiWanted:false, midiOutName:'', midiClock:'off', midiSS:false };
+              midiWanted:false, midiOutName:'', midiClock:'off', midiSS:false, firstDelay:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch(e){}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} };
   if (S.padsVersion !== 2){ S.pads = DEFAULT_PADS.slice(); S.padsVersion = 2; S.active = Math.min(S.active, 5); save(); }
@@ -368,6 +373,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   if (S.scrollMode !== 'row') S.scrollMode = 'page';
   if (S.active >= TOTAL) S.active = -1;
   if (!['off','playing','always'].includes(S.midiClock)) S.midiClock = 'off';
+  if (![0,15,30,45].includes(S.firstDelay)) S.firstDelay = 0;
 
   const term = b => b<60?'Largo':b<66?'Larghetto':b<76?'Adagio':b<108?'Andante':b<120?'Moderato':b<156?'Allegro':b<176?'Vivace':b<200?'Presto':'Prestissimo';
   const clamp = v => Math.max(20, Math.min(300, Math.round(v || 0)));
@@ -514,7 +520,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   function start(firstAt, firstBeat){
     ensureAudio();
     syncOffset();
-    const soonest = ctx.currentTime + 0.012;
+    const soonest = ctx.currentTime + 0.012 + (firstAt == null ? S.firstDelay / 1000 : 0);   // margin for the first click, set in Settings
     let first = firstAt != null ? Math.max(firstAt, soonest) : soonest;
     if (idleTimer){                                  // hand over from the stopped-state clock without a gap or a double pulse
       clearInterval(idleTimer); idleTimer = null;
@@ -804,6 +810,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     $('lateHint').textContent = S.lateBeat
       ? `${S.lateBeat === 2 ? 'לחיצה בפעמה 1' : `לחיצה בפעמות 1–${S.lateBeat - 1}`} מחליפה בסוף התיבה הנוכחית. לחיצה מפעמה ${S.lateBeat} והלאה מנגנת עוד תיבה שלמה ורק אז מחליפה.`
       : 'כל לחיצה מחליפה בסוף התיבה הנוכחית, גם בפעמה האחרונה.';
+    document.querySelectorAll('[data-fd0]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.fd0 === S.firstDelay));
     $('startPlay').setAttribute('aria-pressed', !S.padStarts); $('startPad').setAttribute('aria-pressed', S.padStarts);
     $('startHint').textContent = S.padStarts
       ? 'כשהמטרונום עצור, לחיצה על ריבוע מפעילה אותו בקצב הזה. לחיצה נוספת על הריבוע שמתנגן עוצרת.'
@@ -884,6 +891,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
   $('latePlus').onclick = () => setLate(S.lateBeat ? S.lateBeat + 1 : 2);
   $('lateMinus').onclick = () => setLate(S.lateBeat ? (S.lateBeat === 2 ? 0 : S.lateBeat - 1) : 0);
   $('startPlay').onclick = () => { S.padStarts = false; save(); render(); };
+  document.querySelectorAll('[data-fd0]').forEach(b => b.onclick = () => { S.firstDelay = +b.dataset.fd0; save(); render(); });
   $('startPad').onclick = () => { S.padStarts = true; save(); render(); };
   function setCount(n){
     S.padCount = n;
