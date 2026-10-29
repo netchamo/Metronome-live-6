@@ -301,6 +301,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
         <p class="hint latehint">Start/Stop מפעיל ועוצר במכשיר את מה שמוגדר אצלו לזה, בדרך כלל המקצב או הנגינה. לא את הקליק שלו.</p>
       </div>
     </div>
+    <p class="hint latehint" id="offlineNote" hidden></p>
     <button class="wide" id="editBtn">✎ עריכת הריבועים (קצב, משקל, טקסט)</button>
     <button class="primary" id="setClose">סגור</button>
   </div>
@@ -871,7 +872,19 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
     if (playing) stop(); else startFromTouch(e.timeStamp);
   });
   $('play').addEventListener('click', e => { if (e.detail === 0) (playing ? stop() : start()); });   // keyboard
-  $('gear').onclick = () => { $('setBg').hidden = false; };
+  // Shows whether the app is saved on this device, so it is clear before a show that it will open without internet.
+  async function checkOffline(){
+    const el = $('offlineNote');
+    if (!('serviceWorker' in navigator) || location.protocol !== 'https:' || !/github\.io$|^localhost$/.test(location.hostname)){ el.hidden = true; return; }
+    el.hidden = false;
+    let saved = false;
+    try { saved = !!navigator.serviceWorker.controller && !!(await caches.match('./index.html', { ignoreSearch: true })); } catch(e){}
+    const p = location.pathname;
+    if (!saved && !p.endsWith('/') && !p.endsWith('.html'))
+      el.textContent = `⚠ האפליקציה נפתחה מכתובת בלי "/" בסוף, ובכתובת כזו היא לא עובדת בלי אינטרנט. פתח את ${location.origin + p}/ והתקן ממנה מחדש.`;
+    else el.textContent = saved ? '✓ שמור במכשיר: נפתח גם בלי אינטרנט.' : '⚠ עוד לא נשמר במכשיר. השאר את האפליקציה פתוחה עם אינטרנט כמה שניות, וסגור ופתח שוב.';
+  }
+  $('gear').onclick = () => { $('setBg').hidden = false; checkOffline(); };
   $('setClose').onclick = () => { $('setBg').hidden = true; };
   $('setBg').addEventListener('click', e => { if (e.target === $('setBg')) $('setBg').hidden = true; });
   $('qBar').onclick = () => { S.quantize = true; save(); render(); };
@@ -957,7 +970,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-
 
   buildPads(); render(); layoutPads(); renderMidi(); requestAnimationFrame(frame);
   if (MIDI_OK && S.midiWanted) connectMidi();   // reconnects to the same instrument next time the app opens
-  if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){} }
 })();
 </script>
 
